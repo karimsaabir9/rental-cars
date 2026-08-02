@@ -5,7 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import {
   LayoutDashboard,
   CalendarRange,
-  User,
+  Settings,
   Car,
   Users,
   LogOut,
@@ -19,7 +19,7 @@ const NAV_ITEMS_BY_ROLE = {
   user: [
     { href: "/dashboard", label: "Overview", icon: LayoutDashboard },
     { href: "/dashboard/bookings", label: "My Bookings", icon: CalendarRange },
-    { href: "/dashboard/profile", label: "Profile", icon: User },
+    { href: "/dashboard/profile", label: "Settings", icon: Settings },
   ],
   admin: [
     { href: "/admin", label: "Overview", icon: LayoutDashboard },
@@ -49,10 +49,15 @@ function NavLinks({
   pathname: string;
   className?: string;
 }) {
+  const activeHref = items
+    .map((item) => item.href)
+    .filter((href) => pathname === href || pathname.startsWith(`${href}/`))
+    .sort((a, b) => b.length - a.length)[0];
+
   return (
     <nav className={className}>
       {items.map((item) => {
-        const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
+        const active = item.href === activeHref;
         const Icon = item.icon;
         return (
           <Link

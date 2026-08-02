@@ -20,7 +20,7 @@ const STEPS = [
 
 export function HowItWorks() {
   return (
-    <section className="border-t border-border bg-secondary/40">
+    <section id="how-it-works" className="scroll-mt-20 border-t border-border bg-secondary/40">
       <div className="mx-auto max-w-6xl px-6 py-24">
         <p className="font-mono text-xs tracking-[0.3em] text-accent uppercase">Process</p>
         <h2 className="mt-3 max-w-md text-3xl font-semibold tracking-tight sm:text-4xl">

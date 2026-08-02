@@ -19,6 +19,12 @@ export const auth = betterAuth({
         input: false, // never trust a role passed in from the client
       },
     },
+    changeEmail: {
+      enabled: true,
+      // No email provider is configured in this app, so update directly
+      // rather than sending a verification link to the new address.
+      updateEmailWithoutVerification: true,
+    },
   },
 });
 

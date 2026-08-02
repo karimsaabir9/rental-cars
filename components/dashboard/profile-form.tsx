@@ -1,21 +1,66 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { toast } from "sonner";
+import { Camera } from "lucide-react";
 import { authClient } from "@/lib/auth-client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { AvatarCropDialog } from "@/components/dashboard/avatar-crop-dialog";
 
-export function ProfileForm({ name, email }: { name: string; email: string }) {
+function initials(name: string) {
+  return name
+    .split(" ")
+    .map((p) => p[0])
+    .slice(0, 2)
+    .join("")
+    .toUpperCase();
+}
+
+export function ProfileForm({
+  name,
+  email,
+  image,
+}: {
+  name: string;
+  email: string;
+  image?: string | null;
+}) {
+  const [avatarUrl, setAvatarUrl] = useState(image ?? undefined);
+  const [pendingImageSrc, setPendingImageSrc] = useState<string | null>(null);
+  const [cropOpen, setCropOpen] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   const [displayName, setDisplayName] = useState(name);
   const [savingName, setSavingName] = useState(false);
+
+  const [displayEmail, setDisplayEmail] = useState(email);
+  const [savingEmail, setSavingEmail] = useState(false);
 
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [savingPassword, setSavingPassword] = useState(false);
+
+  function handleFileSelected(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setPendingImageSrc(URL.createObjectURL(file));
+    setCropOpen(true);
+    e.target.value = "";
+  }
+
+  async function handleAvatarSaved(url: string) {
+    setAvatarUrl(url);
+    const { error } = await authClient.updateUser({ image: url });
+    if (error) {
+      toast.error(error.message ?? "Photo uploaded, but couldn't be saved to your profile.");
+    }
+  }
 
   async function handleNameSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -27,6 +72,19 @@ export function ProfileForm({ name, email }: { name: string; email: string }) {
       return;
     }
     toast.success("Profile updated.");
+  }
+
+  async function handleEmailSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (displayEmail === email) return;
+    setSavingEmail(true);
+    const { error } = await authClient.changeEmail({ newEmail: displayEmail });
+    setSavingEmail(false);
+    if (error) {
+      toast.error(error.message ?? "Could not update email.");
+      return;
+    }
+    toast.success("Email updated.");
   }
 
   async function handlePasswordSubmit(e: React.FormEvent) {
@@ -51,20 +109,52 @@ export function ProfileForm({ name, email }: { name: string; email: string }) {
     <div className="max-w-md space-y-6">
       <Card>
         <CardHeader>
-          <CardTitle>Profile</CardTitle>
+          <CardTitle>Photo</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center gap-4">
+            <Avatar className="size-16">
+              <AvatarImage src={avatarUrl} alt={displayName} />
+              <AvatarFallback className="bg-secondary text-lg">
+                {initials(displayName)}
+              </AvatarFallback>
+            </Avatar>
+            <Button type="button" variant="outline" size="sm" onClick={() => fileInputRef.current?.click()}>
+              <Camera className="size-4" />
+              Change photo
+            </Button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={handleFileSelected}
+            />
+          </div>
+        </CardContent>
+      </Card>
+
+      <AvatarCropDialog
+        imageSrc={pendingImageSrc}
+        open={cropOpen}
+        onOpenChange={setCropOpen}
+        onSaved={handleAvatarSaved}
+      />
+
+      <Separator />
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Name</CardTitle>
         </CardHeader>
         <CardContent>
           <form className="space-y-4" onSubmit={handleNameSubmit}>
             <div className="space-y-1.5">
-              <Label htmlFor="name">Name</Label>
+              <Label htmlFor="name">Full name</Label>
               <Input id="name" value={displayName} onChange={(e) => setDisplayName(e.target.value)} />
             </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="email">Email</Label>
-              <Input id="email" value={email} disabled />
-            </div>
-            <Button type="submit" disabled={savingName}>
-              {savingName ? "Saving..." : "Save changes"}
+            <Button type="submit" disabled={savingName || displayName === name}>
+              {savingName ? "Saving..." : "Save name"}
             </Button>
           </form>
         </CardContent>
@@ -74,15 +164,39 @@ export function ProfileForm({ name, email }: { name: string; email: string }) {
 
       <Card>
         <CardHeader>
-          <CardTitle>Change Password</CardTitle>
+          <CardTitle>Email</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <form className="space-y-4" onSubmit={handleEmailSubmit}>
+            <div className="space-y-1.5">
+              <Label htmlFor="email">Email address</Label>
+              <Input
+                id="email"
+                type="email"
+                value={displayEmail}
+                onChange={(e) => setDisplayEmail(e.target.value)}
+              />
+            </div>
+            <Button type="submit" disabled={savingEmail || displayEmail === email}>
+              {savingEmail ? "Saving..." : "Save email"}
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
+
+      <Separator />
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Password</CardTitle>
         </CardHeader>
         <CardContent>
           <form className="space-y-4" onSubmit={handlePasswordSubmit}>
             <div className="space-y-1.5">
               <Label htmlFor="currentPassword">Current password</Label>
-              <Input
+              <PasswordInput
                 id="currentPassword"
-                type="password"
+                autoComplete="current-password"
                 value={currentPassword}
                 onChange={(e) => setCurrentPassword(e.target.value)}
                 required
@@ -90,9 +204,9 @@ export function ProfileForm({ name, email }: { name: string; email: string }) {
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="newPassword">New password</Label>
-              <Input
+              <PasswordInput
                 id="newPassword"
-                type="password"
+                autoComplete="new-password"
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
                 minLength={8}

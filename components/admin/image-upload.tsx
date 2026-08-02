@@ -1,7 +1,6 @@
 "use client";
 
-import { useState } from "react";
-import Image from "next/image";
+import { useEffect, useState } from "react";
 import { Loader2, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -14,14 +13,24 @@ export function ImageUpload({
   onChange: (url: string) => void;
 }) {
   const [uploading, setUploading] = useState(false);
+  const [localPreview, setLocalPreview] = useState<string | null>(null);
+
+  // Revoke the blob URL once it's no longer needed, to avoid leaking memory.
+  useEffect(() => {
+    return () => {
+      if (localPreview) URL.revokeObjectURL(localPreview);
+    };
+  }, [localPreview]);
 
   async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    setLocalPreview(URL.createObjectURL(file));
     setUploading(true);
     const formData = new FormData();
     formData.append("file", file);
+    formData.append("type", "car");
 
     try {
       const res = await fetch("/api/upload", { method: "POST", body: formData });
@@ -30,16 +39,25 @@ export function ImageUpload({
       onChange(data.url);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Upload failed");
+      setLocalPreview(null);
     } finally {
       setUploading(false);
     }
   }
 
+  const previewSrc = localPreview ?? value;
+
   return (
     <div className="space-y-2">
-      {value && (
-        <div className="relative aspect-video w-full max-w-xs overflow-hidden rounded-md border">
-          <Image src={value} alt="Car" fill className="object-cover" />
+      {previewSrc && (
+        <div className="relative aspect-video w-full max-w-xs overflow-hidden rounded-md border bg-muted">
+          {/* eslint-disable-next-line @next/next/no-img-element -- local blob previews aren't compatible with next/image's remote loader */}
+          <img src={previewSrc} alt="Car" className="size-full object-cover" />
+          {uploading && (
+            <div className="absolute inset-0 flex items-center justify-center bg-black/40">
+              <Loader2 className="size-6 animate-spin text-white" />
+            </div>
+          )}
         </div>
       )}
       <label>
@@ -50,7 +68,7 @@ export function ImageUpload({
             ) : (
               <Upload className="size-4" />
             )}
-            {uploading ? "Uploading..." : value ? "Replace image" : "Upload image"}
+            {uploading ? "Uploading..." : previewSrc ? "Replace image" : "Upload image"}
           </span>
         </Button>
         <input type="file" accept="image/*" className="hidden" onChange={handleFileChange} />

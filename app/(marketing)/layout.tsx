@@ -1,10 +1,12 @@
 import { SiteHeader } from "@/components/site-header";
+import { SiteFooter } from "@/components/site-footer";
 
 export default function MarketingLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div>
+    <div className="flex min-h-screen flex-col">
       <SiteHeader />
-      {children}
+      <div className="flex-1">{children}</div>
+      <SiteFooter />
     </div>
   );
 }

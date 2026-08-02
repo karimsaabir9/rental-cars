@@ -2,10 +2,12 @@
 
 import { useRef } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { useGSAP } from "@gsap/react";
 import { ArrowRight } from "lucide-react";
 import { gsap, prefersReducedMotion } from "@/lib/gsap";
 import { Button } from "@/components/ui/button";
+import { stockImageUrl, STOCK_IMAGES } from "@/lib/stock-images";
 
 const STATS = [
   { label: "FLEET", value: "120+" },
@@ -23,11 +25,13 @@ export function Hero() {
 
       const tl = gsap.timeline({ defaults: { ease: "power3.out" } });
 
-      tl.fromTo(
-        ".hero-eyebrow",
-        { opacity: 0, y: 12 },
-        { opacity: 1, y: 0, duration: 0.5 },
-      )
+      tl.fromTo(".hero-photo", { opacity: 0, scale: 1.08 }, { opacity: 1, scale: 1, duration: 1.4 })
+        .fromTo(
+          ".hero-eyebrow",
+          { opacity: 0, y: 12 },
+          { opacity: 1, y: 0, duration: 0.5 },
+          "-=1",
+        )
         .fromTo(
           ".hero-line",
           { opacity: 0, y: 32 },
@@ -67,21 +71,38 @@ export function Hero() {
 
   return (
     <section ref={containerRef} className="showroom relative overflow-hidden bg-background">
+      {/* Photo, faded in from the right so hero text always sits on solid ground */}
+      <div className="hero-photo absolute inset-0" aria-hidden>
+        <Image
+          src={stockImageUrl("hero", 1800)}
+          alt={STOCK_IMAGES.hero.alt}
+          fill
+          priority
+          className="object-cover object-[75%_center]"
+        />
+        <div
+          className="absolute inset-0"
+          style={{
+            background:
+              "linear-gradient(90deg, var(--background) 20%, color-mix(in oklab, var(--background) 75%, transparent) 45%, transparent 75%)",
+          }}
+        />
+        <div
+          className="absolute inset-0"
+          style={{
+            background:
+              "linear-gradient(0deg, var(--background) 0%, transparent 30%, transparent 80%, color-mix(in oklab, var(--background) 60%, transparent) 100%)",
+          }}
+        />
+      </div>
+
       <div
-        className="hero-glow pointer-events-none absolute -top-32 right-[-10%] size-[36rem] rounded-full opacity-30 blur-[120px]"
+        className="hero-glow pointer-events-none absolute -top-32 right-[-10%] size-[36rem] rounded-full opacity-20 blur-[120px]"
         style={{ background: "var(--accent)" }}
         aria-hidden
       />
-      <div
-        className="pointer-events-none absolute inset-0 opacity-[0.05]"
-        style={{
-          backgroundImage:
-            "repeating-linear-gradient(115deg, #fff 0px, #fff 1px, transparent 1px, transparent 64px)",
-        }}
-        aria-hidden
-      />
 
-      <div className="relative mx-auto max-w-6xl px-6 py-28 sm:py-36">
+      <div className="relative mx-auto flex min-h-[calc(100svh-4rem)] max-w-6xl flex-col justify-center px-6 py-16">
         <p className="hero-eyebrow font-mono text-xs tracking-[0.3em] text-accent uppercase">
           Premium Car Rental
         </p>
@@ -104,7 +125,7 @@ export function Hero() {
             </Link>
           </Button>
           <Button asChild size="lg" variant="outline" className="hero-cta">
-            <Link href="/signup">Create an account</Link>
+            <Link href="#how-it-works">See how it works</Link>
           </Button>
         </div>
 
