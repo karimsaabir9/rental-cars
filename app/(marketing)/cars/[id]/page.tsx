@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Reveal } from "@/components/motion/reveal";
+import { carCategoryLabel } from "@/lib/car-categories";
 
 const SPECS = (car: {
   seats: number;
@@ -63,7 +64,7 @@ export default async function CarDetailPage({
           <div>
             <div className="flex flex-wrap gap-2">
               <Badge variant="secondary" className="font-mono uppercase">
-                {car.category}
+                {carCategoryLabel(car.category)}
               </Badge>
               <Badge variant={car.status === "available" ? "success" : "outline"}>
                 {car.status}

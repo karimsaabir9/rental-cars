@@ -3,6 +3,7 @@ import { getServerCaller } from "@/trpc/server";
 import { CarCard } from "@/components/cars/car-card";
 import { CarFilters } from "@/components/cars/car-filters";
 import { RevealGroup } from "@/components/motion/reveal";
+import { CAR_CATEGORY_VALUES, type CarCategory } from "@/lib/car-categories";
 
 export default async function CarsPage({
   searchParams,
@@ -12,8 +13,12 @@ export default async function CarsPage({
   const params = await searchParams;
   const caller = await getServerCaller();
 
+  const category = CAR_CATEGORY_VALUES.includes(params.category as CarCategory)
+    ? (params.category as CarCategory)
+    : undefined;
+
   const cars = await caller.cars.list({
-    category: params.category,
+    category,
     transmission: params.transmission as "automatic" | "manual" | undefined,
     maxPrice: params.maxPrice ? Number(params.maxPrice) : undefined,
   });

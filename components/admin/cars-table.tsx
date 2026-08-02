@@ -22,6 +22,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { carCategoryLabel } from "@/lib/car-categories";
 import {
   Dialog,
   DialogContent,
@@ -76,7 +77,7 @@ export function CarsTable() {
               <TableCell>
                 {car.make} {car.model} ({car.year})
               </TableCell>
-              <TableCell>{car.category}</TableCell>
+              <TableCell>{carCategoryLabel(car.category)}</TableCell>
               <TableCell className="font-mono tabular-nums">${car.pricePerDay}</TableCell>
               <TableCell>
                 <Badge variant={car.status === "available" ? "success" : "secondary"}>

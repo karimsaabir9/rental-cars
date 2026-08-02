@@ -4,8 +4,7 @@ import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-
-const CATEGORIES = ["Economy", "SUV", "Sedan", "Luxury", "Convertible", "Van"];
+import { CAR_CATEGORIES } from "@/lib/car-categories";
 
 export function CarFilters() {
   const router = useRouter();
@@ -35,9 +34,9 @@ export function CarFilters() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All categories</SelectItem>
-            {CATEGORIES.map((c) => (
-              <SelectItem key={c} value={c}>
-                {c}
+            {CAR_CATEGORIES.map((c) => (
+              <SelectItem key={c.value} value={c.value}>
+                {c.label}
               </SelectItem>
             ))}
           </SelectContent>

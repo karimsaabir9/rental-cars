@@ -38,6 +38,42 @@ function initials(name: string) {
     .toUpperCase();
 }
 
+type NavItem = { href: string; label: string; icon: React.ElementType };
+
+function NavLinks({
+  items,
+  pathname,
+  className,
+}: {
+  items: readonly NavItem[];
+  pathname: string;
+  className?: string;
+}) {
+  return (
+    <nav className={className}>
+      {items.map((item) => {
+        const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
+        const Icon = item.icon;
+        return (
+          <Link
+            key={item.href}
+            href={item.href}
+            className={cn(
+              "flex shrink-0 items-center gap-2 rounded-md px-3 py-2 text-sm font-medium whitespace-nowrap transition-colors duration-200",
+              active
+                ? "bg-primary text-primary-foreground"
+                : "text-muted-foreground hover:bg-secondary hover:text-foreground",
+            )}
+          >
+            <Icon className="size-4" />
+            {item.label}
+          </Link>
+        );
+      })}
+    </nav>
+  );
+}
+
 export function DashboardShell({
   role,
   title,
@@ -59,32 +95,6 @@ export function DashboardShell({
     router.refresh();
   }
 
-  function NavLinks({ className }: { className?: string }) {
-    return (
-      <nav className={className}>
-        {navItems.map((item) => {
-          const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
-          const Icon = item.icon;
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={cn(
-                "flex shrink-0 items-center gap-2 rounded-md px-3 py-2 text-sm font-medium whitespace-nowrap transition-colors duration-200",
-                active
-                  ? "bg-primary text-primary-foreground"
-                  : "text-muted-foreground hover:bg-secondary hover:text-foreground",
-              )}
-            >
-              <Icon className="size-4" />
-              {item.label}
-            </Link>
-          );
-        })}
-      </nav>
-    );
-  }
-
   return (
     <div className="flex min-h-screen flex-col lg:flex-row">
       {/* Mobile top bar */}
@@ -95,7 +105,7 @@ export function DashboardShell({
         </Button>
       </header>
       <div className="overflow-x-auto border-b border-border bg-card px-3 py-2 lg:hidden">
-        <NavLinks className="flex gap-1" />
+        <NavLinks items={navItems} pathname={pathname} className="flex gap-1" />
       </div>
 
       {/* Desktop sidebar */}
@@ -103,7 +113,7 @@ export function DashboardShell({
         <div className="mb-8 px-2">
           <span className="font-display text-lg font-semibold tracking-tight">{title}</span>
         </div>
-        <NavLinks className="flex-1 space-y-1" />
+        <NavLinks items={navItems} pathname={pathname} className="flex-1 space-y-1" />
         <div className="space-y-3 border-t border-border pt-4">
           <div className="flex items-center gap-2 px-2">
             <Avatar className="size-7">

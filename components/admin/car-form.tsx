@@ -21,12 +21,13 @@ import {
 } from "@/components/ui/form";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ImageUpload } from "@/components/admin/image-upload";
+import { CAR_CATEGORIES, CAR_CATEGORY_VALUES } from "@/lib/car-categories";
 
 const carFormSchema = z.object({
   make: z.string().min(1),
   model: z.string().min(1),
   year: z.number().int().min(1980).max(new Date().getFullYear() + 1),
-  category: z.string().min(1),
+  category: z.enum(CAR_CATEGORY_VALUES),
   pricePerDay: z.number().positive(),
   seats: z.number().int().min(1).max(15),
   transmission: z.enum(["automatic", "manual"]),
@@ -54,7 +55,7 @@ export function CarForm({
       make: "",
       model: "",
       year: new Date().getFullYear(),
-      category: "Sedan",
+      category: "sedan",
       pricePerDay: 50,
       seats: 5,
       transmission: "automatic",
@@ -171,9 +172,20 @@ export function CarForm({
             render={({ field }) => (
               <FormItem>
                 <FormLabel>Category</FormLabel>
-                <FormControl>
-                  <Input {...field} placeholder="Sedan, SUV, ..." />
-                </FormControl>
+                <Select value={field.value} onValueChange={field.onChange}>
+                  <FormControl>
+                    <SelectTrigger className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    {CAR_CATEGORIES.map((c) => (
+                      <SelectItem key={c.value} value={c.value}>
+                        {c.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
                 <FormMessage />
               </FormItem>
             )}

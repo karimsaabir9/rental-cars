@@ -2,6 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { Car as CarIcon, Users, Fuel, Gauge } from "lucide-react";
 import { Card, CardContent, CardFooter } from "@/components/ui/card";
+import { carCategoryLabel } from "@/lib/car-categories";
 
 type Car = {
   id: string;
@@ -34,7 +35,7 @@ export function CarCard({ car }: { car: Car }) {
             </div>
           )}
           <span className="absolute top-3 left-3 rounded-md bg-black/60 px-2 py-1 font-mono text-xs tracking-wide text-white uppercase backdrop-blur-sm">
-            {car.category}
+            {carCategoryLabel(car.category)}
           </span>
         </div>
         <CardContent className="pt-4">

@@ -4,12 +4,13 @@ import { TRPCError } from "@trpc/server";
 import { createTRPCRouter, publicProcedure, adminProcedure } from "@/trpc/init";
 import { db } from "@/db";
 import { cars } from "@/db/schema";
+import { CAR_CATEGORY_VALUES } from "@/lib/car-categories";
 
 const carInput = z.object({
   make: z.string().min(1),
   model: z.string().min(1),
   year: z.number().int().min(1980).max(new Date().getFullYear() + 1),
-  category: z.string().min(1),
+  category: z.enum(CAR_CATEGORY_VALUES),
   pricePerDay: z.number().positive(),
   seats: z.number().int().min(1).max(15),
   transmission: z.enum(["automatic", "manual"]),
@@ -24,7 +25,7 @@ export const carsRouter = createTRPCRouter({
     .input(
       z
         .object({
-          category: z.string().optional(),
+          category: z.enum(CAR_CATEGORY_VALUES).optional(),
           transmission: z.enum(["automatic", "manual"]).optional(),
           maxPrice: z.number().positive().optional(),
         })
