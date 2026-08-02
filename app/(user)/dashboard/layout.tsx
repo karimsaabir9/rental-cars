@@ -19,7 +19,13 @@ export default async function UserDashboardLayout({
   }
 
   return (
-    <DashboardShell role="user" title="RentalCars" userName={session.user.name}>
+    <DashboardShell
+      role="user"
+      title="RentalCars"
+      userName={session.user.name}
+      userEmail={session.user.email}
+      userImage={session.user.image}
+    >
       {children}
     </DashboardShell>
   );

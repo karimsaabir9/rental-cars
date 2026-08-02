@@ -19,7 +19,13 @@ export default async function AdminDashboardLayout({
   }
 
   return (
-    <DashboardShell role="admin" title="RentalCars Admin" userName={session.user.name}>
+    <DashboardShell
+      role="admin"
+      title="RentalCars Admin"
+      userName={session.user.name}
+      userEmail={session.user.email}
+      userImage={session.user.image}
+    >
       {children}
     </DashboardShell>
   );

@@ -1,19 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
-import {
-  LayoutDashboard,
-  CalendarRange,
-  Settings,
-  Car,
-  Users,
-  LogOut,
-} from "lucide-react";
-import { authClient } from "@/lib/auth-client";
-import { Button } from "@/components/ui/button";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { usePathname } from "next/navigation";
+import { LayoutDashboard, CalendarRange, Settings, Car, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { UserMenu } from "@/components/dashboard/user-menu";
 
 const NAV_ITEMS_BY_ROLE = {
   user: [
@@ -29,14 +20,10 @@ const NAV_ITEMS_BY_ROLE = {
   ],
 } as const;
 
-function initials(name: string) {
-  return name
-    .split(" ")
-    .map((p) => p[0])
-    .slice(0, 2)
-    .join("")
-    .toUpperCase();
-}
+const SETTINGS_HREF_BY_ROLE = {
+  user: "/dashboard/profile",
+  admin: "/admin/settings",
+} as const;
 
 type NavItem = { href: string; label: string; icon: React.ElementType };
 
@@ -83,31 +70,35 @@ export function DashboardShell({
   role,
   title,
   userName,
+  userEmail,
+  userImage,
   children,
 }: {
   role: "user" | "admin";
   title: string;
   userName: string;
+  userEmail: string;
+  userImage?: string | null;
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
-  const router = useRouter();
   const navItems = NAV_ITEMS_BY_ROLE[role];
-
-  async function handleSignOut() {
-    await authClient.signOut();
-    router.push("/login");
-    router.refresh();
-  }
+  const settingsHref = SETTINGS_HREF_BY_ROLE[role];
 
   return (
     <div className="flex min-h-screen flex-col lg:flex-row">
       {/* Mobile top bar */}
       <header className="flex items-center justify-between border-b border-border bg-card px-4 py-3 lg:hidden">
         <span className="font-display text-base font-semibold tracking-tight">{title}</span>
-        <Button variant="ghost" size="icon" onClick={handleSignOut} aria-label="Sign out">
-          <LogOut className="size-4" />
-        </Button>
+        <UserMenu
+          name={userName}
+          email={userEmail}
+          image={userImage}
+          role={role}
+          settingsHref={settingsHref}
+          variant="compact"
+          align="end"
+        />
       </header>
       <div className="overflow-x-auto border-b border-border bg-card px-3 py-2 lg:hidden">
         <NavLinks items={navItems} pathname={pathname} className="flex gap-1" />
@@ -119,22 +110,16 @@ export function DashboardShell({
           <span className="font-display text-lg font-semibold tracking-tight">{title}</span>
         </div>
         <NavLinks items={navItems} pathname={pathname} className="flex-1 space-y-1" />
-        <div className="space-y-3 border-t border-border pt-4">
-          <div className="flex items-center gap-2 px-2">
-            <Avatar className="size-7">
-              <AvatarFallback className="bg-secondary text-xs">{initials(userName)}</AvatarFallback>
-            </Avatar>
-            <p className="truncate text-sm text-muted-foreground">{userName}</p>
-          </div>
-          <Button
-            variant="outline"
-            size="sm"
-            className="w-full justify-start gap-2"
-            onClick={handleSignOut}
-          >
-            <LogOut className="size-4" />
-            Sign out
-          </Button>
+        <div className="border-t border-border pt-3">
+          <UserMenu
+            name={userName}
+            email={userEmail}
+            image={userImage}
+            role={role}
+            settingsHref={settingsHref}
+            variant="full"
+            align="start"
+          />
         </div>
       </aside>
 
