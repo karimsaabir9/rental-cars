@@ -129,7 +129,7 @@ export function Hero() {
           </Button>
         </div>
 
-        <dl className="mt-20 grid grid-cols-2 gap-6 border-t border-border pt-8 sm:grid-cols-4">
+        <dl className="mt-12 grid grid-cols-2 gap-6 border-t border-border pt-8 sm:grid-cols-4">
           {STATS.map((stat) => (
             <div key={stat.label} className="hero-stat">
               <dt className="font-mono text-xs tracking-[0.2em] text-muted-foreground uppercase">
