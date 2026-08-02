@@ -1,19 +1,21 @@
-import { sql, and, eq, lte, gte, inArray } from "drizzle-orm";
+import { sql, and, eq, lte, gte } from "drizzle-orm";
 import { createTRPCRouter, adminProcedure } from "@/trpc/init";
 import { db } from "@/db";
-import { bookings, cars, user } from "@/db/schema";
-
-// Statuses that represent a committed rental (money owed/collected).
-const REVENUE_STATUSES = ["confirmed", "approved", "completed"] as const;
+import { bookings, cars, payments, user } from "@/db/schema";
 
 export const statsRouter = createTRPCRouter({
   overview: adminProcedure.query(async () => {
     const today = new Date().toISOString().slice(0, 10);
 
     const [revenueRow] = await db
-      .select({ total: sql<string>`coalesce(sum(${bookings.totalPrice}), 0)` })
-      .from(bookings)
-      .where(inArray(bookings.status, REVENUE_STATUSES));
+      .select({ total: sql<string>`coalesce(sum(${payments.amount}), 0)` })
+      .from(payments)
+      .where(eq(payments.status, "paid"));
+
+    const [pendingPaymentsRow] = await db
+      .select({ total: sql<string>`coalesce(sum(${payments.amount}), 0)` })
+      .from(payments)
+      .where(eq(payments.status, "pending"));
 
     const [activeRow] = await db
       .select({ count: sql<number>`count(*)` })
@@ -41,13 +43,13 @@ export const statsRouter = createTRPCRouter({
 
     const revenueByMonth = await db
       .select({
-        month: sql<string>`to_char(${bookings.createdAt}, 'YYYY-MM')`,
-        total: sql<string>`coalesce(sum(${bookings.totalPrice}), 0)`,
+        month: sql<string>`to_char(${payments.paidAt}, 'YYYY-MM')`,
+        total: sql<string>`coalesce(sum(${payments.amount}), 0)`,
       })
-      .from(bookings)
-      .where(inArray(bookings.status, REVENUE_STATUSES))
-      .groupBy(sql`to_char(${bookings.createdAt}, 'YYYY-MM')`)
-      .orderBy(sql`to_char(${bookings.createdAt}, 'YYYY-MM')`);
+      .from(payments)
+      .where(eq(payments.status, "paid"))
+      .groupBy(sql`to_char(${payments.paidAt}, 'YYYY-MM')`)
+      .orderBy(sql`to_char(${payments.paidAt}, 'YYYY-MM')`);
 
     const bookingsByStatus = await db
       .select({ status: bookings.status, count: sql<number>`count(*)` })
@@ -62,6 +64,7 @@ export const statsRouter = createTRPCRouter({
 
     return {
       revenue: Number(revenueRow?.total ?? 0),
+      pendingPayments: Number(pendingPaymentsRow?.total ?? 0),
       activeRentals,
       pendingApprovals: Number(pendingRow?.count ?? 0),
       totalCars,

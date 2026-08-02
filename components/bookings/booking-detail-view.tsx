@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { BookingTimeline } from "@/components/bookings/booking-timeline";
+import { PaymentPanel } from "@/components/payments/payment-panel";
 import { BOOKING_STATUS_LABEL, BOOKING_STATUS_VARIANT } from "@/lib/booking-status";
 import type { RouterOutputs } from "@/trpc/routers/_app";
 
@@ -127,6 +128,8 @@ export function BookingDetailView({
               )}
             </CardContent>
           </Card>
+
+          <PaymentPanel bookingId={booking.id} isOwner={isOwner} />
         </div>
 
         <Card>

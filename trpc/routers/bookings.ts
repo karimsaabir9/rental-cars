@@ -3,7 +3,7 @@ import { and, eq, lte, gte, ne, inArray } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { createTRPCRouter, protectedProcedure, adminProcedure } from "@/trpc/init";
 import { db } from "@/db";
-import { bookings, bookingEvents, cars } from "@/db/schema";
+import { bookings, bookingEvents, cars, payments } from "@/db/schema";
 
 // "confirmed" is the legacy instant-book status; treated as active here so
 // any pre-workflow rows still correctly block overlapping dates.
@@ -161,6 +161,11 @@ export const bookingsRouter = createTRPCRouter({
         bookingId: input.id,
         status: "approved",
         actorId: ctx.session.user.id,
+      });
+      await tx.insert(payments).values({
+        bookingId: input.id,
+        userId: booking.userId,
+        amount: booking.totalPrice,
       });
       return updated;
     });

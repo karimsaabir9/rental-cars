@@ -46,6 +46,7 @@ export function StatsOverview() {
 
   const statCards = [
     { label: "Total Revenue", value: `$${data.revenue.toFixed(2)}` },
+    { label: "Pending Payments", value: `$${data.pendingPayments.toFixed(2)}` },
     { label: "Active Rentals", value: data.activeRentals },
     { label: "Pending Approval", value: data.pendingApprovals },
     { label: "Total Cars", value: data.totalCars },
