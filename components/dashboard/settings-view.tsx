@@ -119,8 +119,9 @@ export function SettingsView({
   }
 
   return (
-    <div className="showroom -m-6 min-h-screen bg-background p-6 sm:-m-8 sm:p-8">
-      <div className="mx-auto max-w-2xl">
+    <div>
+      <h1 className="mb-6 text-2xl font-semibold tracking-tight">Settings</h1>
+      <div className="max-w-2xl">
         <Tabs defaultValue="profile">
           <TabsList className="h-auto w-full justify-start gap-6 rounded-none border-b border-border bg-transparent p-0">
             <TabsTrigger value="profile" className={tabTriggerClass}>

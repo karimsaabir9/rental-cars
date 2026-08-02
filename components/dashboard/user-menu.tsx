@@ -119,7 +119,7 @@ export function UserMenu({
 
         <DropdownMenuItem variant="destructive" onClick={handleSignOut} className="cursor-pointer">
           <LogOut className="size-4" />
-          Sign out
+          Logout
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

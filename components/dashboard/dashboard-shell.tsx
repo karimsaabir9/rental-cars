@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, CalendarRange, Settings, Car, Users } from "lucide-react";
+import { LayoutDashboard, CalendarRange, Car, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { UserMenu } from "@/components/dashboard/user-menu";
 
@@ -10,7 +10,6 @@ const NAV_ITEMS_BY_ROLE = {
   user: [
     { href: "/dashboard", label: "Overview", icon: LayoutDashboard },
     { href: "/dashboard/bookings", label: "My Bookings", icon: CalendarRange },
-    { href: "/dashboard/profile", label: "Settings", icon: Settings },
   ],
   admin: [
     { href: "/admin", label: "Overview", icon: LayoutDashboard },
@@ -30,16 +29,23 @@ type NavItem = { href: string; label: string; icon: React.ElementType };
 function NavLinks({
   items,
   pathname,
+  excludeHref,
   className,
 }: {
   items: readonly NavItem[];
   pathname: string;
+  excludeHref?: string;
   className?: string;
 }) {
-  const activeHref = items
-    .map((item) => item.href)
-    .filter((href) => pathname === href || pathname.startsWith(`${href}/`))
-    .sort((a, b) => b.length - a.length)[0];
+  const isExcluded =
+    !!excludeHref && (pathname === excludeHref || pathname.startsWith(`${excludeHref}/`));
+
+  const activeHref = isExcluded
+    ? undefined
+    : items
+        .map((item) => item.href)
+        .filter((href) => pathname === href || pathname.startsWith(`${href}/`))
+        .sort((a, b) => b.length - a.length)[0];
 
   return (
     <nav className={className}>
@@ -101,7 +107,12 @@ export function DashboardShell({
         />
       </header>
       <div className="overflow-x-auto border-b border-border bg-card px-3 py-2 lg:hidden">
-        <NavLinks items={navItems} pathname={pathname} className="flex gap-1" />
+        <NavLinks
+          items={navItems}
+          pathname={pathname}
+          excludeHref={settingsHref}
+          className="flex gap-1"
+        />
       </div>
 
       {/* Desktop sidebar */}
@@ -109,7 +120,12 @@ export function DashboardShell({
         <div className="mb-8 px-2">
           <span className="font-display text-lg font-semibold tracking-tight">{title}</span>
         </div>
-        <NavLinks items={navItems} pathname={pathname} className="flex-1 space-y-1" />
+        <NavLinks
+          items={navItems}
+          pathname={pathname}
+          excludeHref={settingsHref}
+          className="flex-1 space-y-1"
+        />
         <div className="border-t border-border pt-3">
           <UserMenu
             name={userName}
