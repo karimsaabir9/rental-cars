@@ -112,3 +112,7 @@ trpc/               Router definitions and procedure tiers
 - **Admin** routes (`/admin/*`) require a valid session with the `admin` role.
 
 Route access is enforced in two layers: an edge check on the session cookie for a fast redirect, and an authoritative server-side session lookup in each route group's layout. The tRPC API enforces the same rules independently, so authorization can't be bypassed by calling the API directly. Only the seeded account can ever hold the admin role — there is no in-app path to grant it.
+
+## License
+
+Licensed under the [MIT License](LICENSE) — Copyright (c) 2026 Sabir Salad.
