@@ -6,12 +6,26 @@ const EXPLORE_LINKS = [
   { href: "#how-it-works", label: "How It Works" },
 ];
 
-const ACCOUNT_LINKS = [
+const GUEST_ACCOUNT_LINKS = [
   { href: "/login", label: "Sign In" },
   { href: "/signup", label: "Create Account" },
 ];
 
-export function SiteFooter() {
+export function SiteFooter({
+  user,
+}: {
+  user?: { role: "user" | "admin" } | null;
+} = {}) {
+  const accountLinks = user
+    ? [
+        { href: user.role === "admin" ? "/admin" : "/dashboard", label: "Dashboard" },
+        {
+          href: user.role === "admin" ? "/admin/settings" : "/dashboard/profile",
+          label: "Settings",
+        },
+      ]
+    : GUEST_ACCOUNT_LINKS;
+
   return (
     <footer className="showroom border-t border-border bg-background">
       <div className="mx-auto max-w-6xl px-6 py-16">
@@ -52,7 +66,7 @@ export function SiteFooter() {
               Account
             </p>
             <ul className="mt-4 space-y-2.5">
-              {ACCOUNT_LINKS.map((link) => (
+              {accountLinks.map((link) => (
                 <li key={link.href}>
                   <Link
                     href={link.href}
