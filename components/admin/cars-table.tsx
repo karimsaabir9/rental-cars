@@ -32,12 +32,18 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 
+const STATUS_BADGE_VARIANT = {
+  available: "success",
+  rented: "warning",
+  maintenance: "secondary",
+} as const;
+
 export function CarsTable() {
   const { data: cars, isLoading } = trpc.cars.adminList.useQuery();
   const utils = trpc.useUtils();
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
 
-  const setAvailability = trpc.cars.setAvailability.useMutation({
+  const setStatus = trpc.cars.setStatus.useMutation({
     onSuccess: (_data, variables) => {
       toast.success(`Car marked ${variables.status}.`);
       utils.cars.adminList.invalidate();
@@ -83,8 +89,8 @@ export function CarsTable() {
               <TableCell>{carCategoryLabel(car.category)}</TableCell>
               <TableCell className="font-mono tabular-nums">${car.pricePerDay}</TableCell>
               <TableCell>
-                <Badge variant={car.status === "available" ? "success" : "secondary"}>
-                  {car.status}
+                <Badge variant={STATUS_BADGE_VARIANT[car.displayStatus]}>
+                  {car.displayStatus}
                 </Badge>
               </TableCell>
               <TableCell>
@@ -100,13 +106,13 @@ export function CarsTable() {
                     </DropdownMenuItem>
                     <DropdownMenuItem
                       onClick={() =>
-                        setAvailability.mutate({
+                        setStatus.mutate({
                           id: car.id,
-                          status: car.status === "available" ? "unavailable" : "available",
+                          status: car.status === "maintenance" ? "available" : "maintenance",
                         })
                       }
                     >
-                      Mark {car.status === "available" ? "unavailable" : "available"}
+                      {car.status === "maintenance" ? "Mark available" : "Mark for maintenance"}
                     </DropdownMenuItem>
                     <DropdownMenuItem
                       variant="destructive"

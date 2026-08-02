@@ -1,9 +1,13 @@
 import { z } from "zod";
-import { and, eq, lte, gte, ne } from "drizzle-orm";
+import { and, eq, lte, gte, ne, inArray } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { createTRPCRouter, protectedProcedure, adminProcedure } from "@/trpc/init";
 import { db } from "@/db";
-import { bookings, cars } from "@/db/schema";
+import { bookings, bookingEvents, cars } from "@/db/schema";
+
+// "confirmed" is the legacy instant-book status; treated as active here so
+// any pre-workflow rows still correctly block overlapping dates.
+const ACTIVE_STATUSES = ["confirmed", "pending", "approved"] as const;
 
 const dateRangeInput = z.object({
   carId: z.string(),
@@ -11,11 +15,16 @@ const dateRangeInput = z.object({
   endDate: z.iso.date(),
 });
 
-async function assertNoOverlap(carId: string, startDate: string, endDate: string, excludeBookingId?: string) {
+async function assertNoOverlap(
+  carId: string,
+  startDate: string,
+  endDate: string,
+  excludeBookingId?: string,
+) {
   const overlapping = await db.query.bookings.findFirst({
     where: and(
       eq(bookings.carId, carId),
-      eq(bookings.status, "confirmed"),
+      inArray(bookings.status, ACTIVE_STATUSES),
       lte(bookings.startDate, endDate),
       gte(bookings.endDate, startDate),
       ...(excludeBookingId ? [ne(bookings.id, excludeBookingId)] : []),
@@ -31,11 +40,15 @@ export const bookingsRouter = createTRPCRouter({
     if (input.endDate < input.startDate) {
       throw new TRPCError({ code: "BAD_REQUEST", message: "End date must be after start date." });
     }
+    const today = new Date().toISOString().slice(0, 10);
+    if (input.startDate < today) {
+      throw new TRPCError({ code: "BAD_REQUEST", message: "Start date can't be in the past." });
+    }
 
     const car = await db.query.cars.findFirst({ where: eq(cars.id, input.carId) });
     if (!car) throw new TRPCError({ code: "NOT_FOUND" });
-    if (car.status !== "available") {
-      throw new TRPCError({ code: "CONFLICT", message: "Car is not available." });
+    if (car.status === "maintenance" || car.status === "unavailable") {
+      throw new TRPCError({ code: "CONFLICT", message: "Car is not available for booking." });
     }
 
     return db.transaction(async (tx) => {
@@ -55,8 +68,15 @@ export const bookingsRouter = createTRPCRouter({
           startDate: input.startDate,
           endDate: input.endDate,
           totalPrice,
+          status: "pending",
         })
         .returning();
+
+      await tx.insert(bookingEvents).values({
+        bookingId: created.id,
+        status: "pending",
+        actorId: ctx.session.user.id,
+      });
 
       return created;
     });
@@ -70,6 +90,25 @@ export const bookingsRouter = createTRPCRouter({
     });
   }),
 
+  getById: protectedProcedure.input(z.object({ id: z.string() })).query(async ({ ctx, input }) => {
+    const booking = await db.query.bookings.findFirst({
+      where: eq(bookings.id, input.id),
+      with: {
+        car: true,
+        user: true,
+        events: {
+          with: { actor: true },
+          orderBy: (e, { asc }) => [asc(e.createdAt)],
+        },
+      },
+    });
+    if (!booking) throw new TRPCError({ code: "NOT_FOUND" });
+    if (booking.userId !== ctx.session.user.id && ctx.session.user.role !== "admin") {
+      throw new TRPCError({ code: "FORBIDDEN" });
+    }
+    return booking;
+  }),
+
   cancelMine: protectedProcedure
     .input(z.object({ id: z.string() }))
     .mutation(async ({ ctx, input }) => {
@@ -77,12 +116,25 @@ export const bookingsRouter = createTRPCRouter({
       if (!booking || booking.userId !== ctx.session.user.id) {
         throw new TRPCError({ code: "NOT_FOUND" });
       }
-      const [updated] = await db
-        .update(bookings)
-        .set({ status: "cancelled" })
-        .where(eq(bookings.id, input.id))
-        .returning();
-      return updated;
+      if (booking.status !== "pending") {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Only pending bookings can be cancelled.",
+        });
+      }
+      return db.transaction(async (tx) => {
+        const [updated] = await tx
+          .update(bookings)
+          .set({ status: "cancelled" })
+          .where(eq(bookings.id, input.id))
+          .returning();
+        await tx.insert(bookingEvents).values({
+          bookingId: input.id,
+          status: "cancelled",
+          actorId: ctx.session.user.id,
+        });
+        return updated;
+      });
     }),
 
   listAll: adminProcedure.query(async () => {
@@ -92,15 +144,73 @@ export const bookingsRouter = createTRPCRouter({
     });
   }),
 
-  updateStatus: adminProcedure
-    .input(z.object({ id: z.string(), status: z.enum(["confirmed", "completed", "cancelled"]) }))
-    .mutation(async ({ input }) => {
-      const [updated] = await db
+  approve: adminProcedure.input(z.object({ id: z.string() })).mutation(async ({ ctx, input }) => {
+    const booking = await db.query.bookings.findFirst({ where: eq(bookings.id, input.id) });
+    if (!booking) throw new TRPCError({ code: "NOT_FOUND" });
+    if (booking.status !== "pending") {
+      throw new TRPCError({ code: "BAD_REQUEST", message: "Only pending bookings can be approved." });
+    }
+    return db.transaction(async (tx) => {
+      await assertNoOverlap(booking.carId, booking.startDate, booking.endDate, booking.id);
+      const [updated] = await tx
         .update(bookings)
-        .set({ status: input.status })
+        .set({ status: "approved" })
         .where(eq(bookings.id, input.id))
         .returning();
-      if (!updated) throw new TRPCError({ code: "NOT_FOUND" });
+      await tx.insert(bookingEvents).values({
+        bookingId: input.id,
+        status: "approved",
+        actorId: ctx.session.user.id,
+      });
       return updated;
+    });
+  }),
+
+  reject: adminProcedure
+    .input(z.object({ id: z.string(), reason: z.string().max(500).optional() }))
+    .mutation(async ({ ctx, input }) => {
+      const booking = await db.query.bookings.findFirst({ where: eq(bookings.id, input.id) });
+      if (!booking) throw new TRPCError({ code: "NOT_FOUND" });
+      if (booking.status !== "pending") {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Only pending bookings can be rejected." });
+      }
+      return db.transaction(async (tx) => {
+        const [updated] = await tx
+          .update(bookings)
+          .set({ status: "rejected" })
+          .where(eq(bookings.id, input.id))
+          .returning();
+        await tx.insert(bookingEvents).values({
+          bookingId: input.id,
+          status: "rejected",
+          actorId: ctx.session.user.id,
+          note: input.reason,
+        });
+        return updated;
+      });
     }),
+
+  complete: adminProcedure.input(z.object({ id: z.string() })).mutation(async ({ ctx, input }) => {
+    const booking = await db.query.bookings.findFirst({ where: eq(bookings.id, input.id) });
+    if (!booking) throw new TRPCError({ code: "NOT_FOUND" });
+    if (booking.status !== "approved") {
+      throw new TRPCError({
+        code: "BAD_REQUEST",
+        message: "Only approved bookings can be marked completed.",
+      });
+    }
+    return db.transaction(async (tx) => {
+      const [updated] = await tx
+        .update(bookings)
+        .set({ status: "completed" })
+        .where(eq(bookings.id, input.id))
+        .returning();
+      await tx.insert(bookingEvents).values({
+        bookingId: input.id,
+        status: "completed",
+        actorId: ctx.session.user.id,
+      });
+      return updated;
+    });
+  }),
 });

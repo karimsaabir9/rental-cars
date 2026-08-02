@@ -4,12 +4,7 @@ import { getServerCaller } from "@/trpc/server";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-
-const statusVariant = {
-  confirmed: "success",
-  completed: "secondary",
-  cancelled: "destructive",
-} as const;
+import { BOOKING_STATUS_LABEL, BOOKING_STATUS_VARIANT } from "@/lib/booking-status";
 
 export default async function UserDashboardPage() {
   const caller = await getServerCaller();
@@ -17,8 +12,9 @@ export default async function UserDashboardPage() {
   const today = new Date().toISOString().slice(0, 10);
 
   const upcoming = bookings.filter(
-    (b) => b.status === "confirmed" && b.endDate >= today,
+    (b) => (b.status === "confirmed" || b.status === "approved") && b.endDate >= today,
   );
+  const pendingCount = bookings.filter((b) => b.status === "pending").length;
   const recent = bookings.slice(0, 5);
 
   return (
@@ -26,7 +22,7 @@ export default async function UserDashboardPage() {
       <h1 className="text-2xl font-semibold tracking-tight">Welcome back</h1>
       <p className="mt-1 text-sm text-muted-foreground">Here&apos;s where things stand.</p>
 
-      <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
+      <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
         <Card>
           <CardHeader>
             <CardTitle className="text-sm font-medium text-muted-foreground">
@@ -35,6 +31,16 @@ export default async function UserDashboardPage() {
           </CardHeader>
           <CardContent>
             <p className="font-mono text-3xl font-semibold tabular-nums">{upcoming.length}</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              Pending Approval
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="font-mono text-3xl font-semibold tabular-nums">{pendingCount}</p>
           </CardContent>
         </Card>
         <Card>
@@ -76,9 +82,10 @@ export default async function UserDashboardPage() {
         ) : (
           <div className="divide-y divide-border rounded-xl border border-border bg-card">
             {recent.map((booking) => (
-              <div
+              <Link
                 key={booking.id}
-                className="flex flex-wrap items-center justify-between gap-3 px-4 py-3"
+                href={`/dashboard/bookings/${booking.id}`}
+                className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 transition-colors hover:bg-secondary"
               >
                 <div>
                   <p className="text-sm font-medium">
@@ -90,9 +97,11 @@ export default async function UserDashboardPage() {
                 </div>
                 <div className="flex items-center gap-3">
                   <span className="font-mono text-sm tabular-nums">${booking.totalPrice}</span>
-                  <Badge variant={statusVariant[booking.status]}>{booking.status}</Badge>
+                  <Badge variant={BOOKING_STATUS_VARIANT[booking.status]}>
+                    {BOOKING_STATUS_LABEL[booking.status]}
+                  </Badge>
                 </div>
-              </div>
+              </Link>
             ))}
           </div>
         )}

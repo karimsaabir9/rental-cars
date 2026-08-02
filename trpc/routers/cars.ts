@@ -1,10 +1,11 @@
 import { z } from "zod";
-import { and, eq, lte, asc } from "drizzle-orm";
+import { and, eq, lte, gte, asc, inArray } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { createTRPCRouter, publicProcedure, adminProcedure } from "@/trpc/init";
 import { db } from "@/db";
-import { cars } from "@/db/schema";
+import { bookings, cars } from "@/db/schema";
 import { CAR_CATEGORY_VALUES } from "@/lib/car-categories";
+import { computeCarDisplayStatus } from "@/lib/car-status";
 
 const carInput = z.object({
   make: z.string().min(1),
@@ -19,6 +20,17 @@ const carInput = z.object({
   imageUrl: z.string().url().optional(),
   description: z.string().optional(),
 });
+
+// Cars with an approved booking covering today. Kept as a set lookup so list
+// queries can compute a display status without N+1 subqueries.
+async function getCurrentlyRentedCarIds() {
+  const today = new Date().toISOString().slice(0, 10);
+  const rows = await db
+    .select({ carId: bookings.carId })
+    .from(bookings)
+    .where(and(eq(bookings.status, "approved"), lte(bookings.startDate, today), gte(bookings.endDate, today)));
+  return new Set(rows.map((r) => r.carId));
+}
 
 export const carsRouter = createTRPCRouter({
   list: publicProcedure
@@ -37,21 +49,52 @@ export const carsRouter = createTRPCRouter({
       if (input?.transmission) filters.push(eq(cars.transmission, input.transmission));
       if (input?.maxPrice) filters.push(lte(cars.pricePerDay, String(input.maxPrice)));
 
-      return db
-        .select()
-        .from(cars)
-        .where(and(...filters))
-        .orderBy(asc(cars.pricePerDay));
+      const [rows, rentedIds] = await Promise.all([
+        db
+          .select()
+          .from(cars)
+          .where(and(...filters))
+          .orderBy(asc(cars.pricePerDay)),
+        getCurrentlyRentedCarIds(),
+      ]);
+
+      return rows.map((car) => ({
+        ...car,
+        displayStatus: computeCarDisplayStatus(car.status, rentedIds.has(car.id)),
+      }));
     }),
 
   getById: publicProcedure.input(z.object({ id: z.string() })).query(async ({ input }) => {
     const car = await db.query.cars.findFirst({ where: eq(cars.id, input.id) });
     if (!car) throw new TRPCError({ code: "NOT_FOUND" });
-    return car;
+    const rentedIds = await getCurrentlyRentedCarIds();
+    return { ...car, displayStatus: computeCarDisplayStatus(car.status, rentedIds.has(car.id)) };
   }),
 
+  getAvailability: publicProcedure
+    .input(z.object({ carId: z.string() }))
+    .query(async ({ input }) => {
+      return db
+        .select({ startDate: bookings.startDate, endDate: bookings.endDate })
+        .from(bookings)
+        .where(
+          and(
+            eq(bookings.carId, input.carId),
+            inArray(bookings.status, ["confirmed", "pending", "approved"]),
+          ),
+        )
+        .orderBy(asc(bookings.startDate));
+    }),
+
   adminList: adminProcedure.query(async () => {
-    return db.select().from(cars).orderBy(asc(cars.make));
+    const [rows, rentedIds] = await Promise.all([
+      db.select().from(cars).orderBy(asc(cars.make)),
+      getCurrentlyRentedCarIds(),
+    ]);
+    return rows.map((car) => ({
+      ...car,
+      displayStatus: computeCarDisplayStatus(car.status, rentedIds.has(car.id)),
+    }));
   }),
 
   create: adminProcedure.input(carInput).mutation(async ({ input }) => {
@@ -78,8 +121,8 @@ export const carsRouter = createTRPCRouter({
       return updated;
     }),
 
-  setAvailability: adminProcedure
-    .input(z.object({ id: z.string(), status: z.enum(["available", "unavailable"]) }))
+  setStatus: adminProcedure
+    .input(z.object({ id: z.string(), status: z.enum(["available", "maintenance"]) }))
     .mutation(async ({ input }) => {
       const [updated] = await db
         .update(cars)

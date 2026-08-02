@@ -6,9 +6,10 @@ import { auth } from "@/lib/auth";
 import { getServerCaller } from "@/trpc/server";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Reveal } from "@/components/motion/reveal";
 import { carCategoryLabel } from "@/lib/car-categories";
+import { AvailabilityCalendar } from "@/components/bookings/availability-calendar";
 
 const SPECS = (car: {
   seats: number;
@@ -22,6 +23,12 @@ const SPECS = (car: {
   { icon: Tag, label: "Plate", value: car.licensePlate },
 ];
 
+const STATUS_BADGE_VARIANT = {
+  available: "success",
+  rented: "warning",
+  maintenance: "secondary",
+} as const;
+
 export default async function CarDetailPage({
   params,
 }: {
@@ -32,6 +39,7 @@ export default async function CarDetailPage({
   const car = await caller.cars.getById({ id });
   const session = await auth.api.getSession({ headers: await headers() });
 
+  const canBook = car.status !== "maintenance" && car.status !== "unavailable";
   const bookHref =
     !session || session.user.role === "user"
       ? session
@@ -66,9 +74,7 @@ export default async function CarDetailPage({
               <Badge variant="secondary" className="font-mono uppercase">
                 {carCategoryLabel(car.category)}
               </Badge>
-              <Badge variant={car.status === "available" ? "success" : "outline"}>
-                {car.status}
-              </Badge>
+              <Badge variant={STATUS_BADGE_VARIANT[car.displayStatus]}>{car.displayStatus}</Badge>
             </div>
 
             <h1 className="mt-4 font-display text-3xl font-semibold tracking-tight sm:text-4xl">
@@ -89,6 +95,15 @@ export default async function CarDetailPage({
                 </div>
               ))}
             </div>
+
+            <Card className="mt-8">
+              <CardHeader>
+                <CardTitle className="text-base">Availability</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <AvailabilityCalendar carId={car.id} />
+              </CardContent>
+            </Card>
           </div>
         </Reveal>
 
@@ -100,15 +115,17 @@ export default async function CarDetailPage({
                 <span className="text-muted-foreground text-sm">/day</span>
               </p>
               <p className="mt-3 text-sm text-muted-foreground">
-                {car.status === "available"
-                  ? "Available now — reserve without a deposit."
-                  : "Currently unavailable for booking."}
+                {car.displayStatus === "maintenance"
+                  ? "Currently unavailable for booking."
+                  : car.displayStatus === "rented"
+                    ? "Currently out on rent — check the calendar for open dates."
+                    : "Available now — reserve without a deposit."}
               </p>
-              {bookHref && car.status === "available" ? (
+              {bookHref && canBook ? (
                 <Button asChild className="mt-6 w-full">
                   <Link href={bookHref}>Book Now</Link>
                 </Button>
-              ) : car.status === "available" ? (
+              ) : canBook ? (
                 <Button asChild variant="outline" className="mt-6 w-full">
                   <Link href="/admin/bookings">Manage bookings</Link>
                 </Button>

@@ -1,10 +1,14 @@
 "use client";
 
+import Link from "next/link";
+import { useState } from "react";
 import { toast } from "sonner";
 import { trpc } from "@/trpc/client";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Table,
   TableBody,
@@ -13,21 +17,46 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-
-const statusVariant = {
-  confirmed: "success",
-  completed: "secondary",
-  cancelled: "destructive",
-} as const;
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { BOOKING_STATUS_LABEL, BOOKING_STATUS_VARIANT } from "@/lib/booking-status";
 
 export function AdminBookingsTable() {
   const { data: bookings, isLoading } = trpc.bookings.listAll.useQuery();
   const utils = trpc.useUtils();
+  const [rejectingId, setRejectingId] = useState<string | null>(null);
+  const [reason, setReason] = useState("");
 
-  const updateStatus = trpc.bookings.updateStatus.useMutation({
+  const invalidate = () => utils.bookings.listAll.invalidate();
+
+  const approve = trpc.bookings.approve.useMutation({
     onSuccess: () => {
-      toast.success("Booking updated.");
-      utils.bookings.listAll.invalidate();
+      toast.success("Booking approved.");
+      invalidate();
+    },
+    onError: (error) => toast.error(error.message),
+  });
+
+  const reject = trpc.bookings.reject.useMutation({
+    onSuccess: () => {
+      toast.success("Booking rejected.");
+      invalidate();
+      setRejectingId(null);
+      setReason("");
+    },
+    onError: (error) => toast.error(error.message),
+  });
+
+  const complete = trpc.bookings.complete.useMutation({
+    onSuccess: () => {
+      toast.success("Booking marked completed.");
+      invalidate();
     },
     onError: (error) => toast.error(error.message),
   });
@@ -44,60 +73,122 @@ export function AdminBookingsTable() {
     );
   }
 
+  const isPending = approve.isPending || reject.isPending || complete.isPending;
+
   return (
-    <Table>
-      <TableHeader>
-        <TableRow>
-          <TableHead>Customer</TableHead>
-          <TableHead>Car</TableHead>
-          <TableHead>Dates</TableHead>
-          <TableHead>Total</TableHead>
-          <TableHead>Status</TableHead>
-          <TableHead />
-        </TableRow>
-      </TableHeader>
-      <TableBody>
-        {bookings.map((booking) => (
-          <TableRow key={booking.id}>
-            <TableCell>
-              {booking.user.name}
-              <div className="text-xs text-muted-foreground">{booking.user.email}</div>
-            </TableCell>
-            <TableCell>
-              {booking.car.make} {booking.car.model}
-            </TableCell>
-            <TableCell className="font-mono text-sm tabular-nums">
-              {booking.startDate} &rarr; {booking.endDate}
-            </TableCell>
-            <TableCell className="font-mono tabular-nums">${booking.totalPrice}</TableCell>
-            <TableCell>
-              <Badge variant={statusVariant[booking.status]}>{booking.status}</Badge>
-            </TableCell>
-            <TableCell className="space-x-2">
-              {booking.status === "confirmed" && (
-                <>
+    <>
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Customer</TableHead>
+            <TableHead>Car</TableHead>
+            <TableHead>Dates</TableHead>
+            <TableHead>Total</TableHead>
+            <TableHead>Status</TableHead>
+            <TableHead />
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {bookings.map((booking) => (
+            <TableRow key={booking.id}>
+              <TableCell>
+                {booking.user.name}
+                <div className="text-xs text-muted-foreground">{booking.user.email}</div>
+              </TableCell>
+              <TableCell>
+                {booking.car.make} {booking.car.model}
+              </TableCell>
+              <TableCell className="font-mono text-sm tabular-nums">
+                {booking.startDate} &rarr; {booking.endDate}
+              </TableCell>
+              <TableCell className="font-mono tabular-nums">${booking.totalPrice}</TableCell>
+              <TableCell>
+                <Badge variant={BOOKING_STATUS_VARIANT[booking.status]}>
+                  {BOOKING_STATUS_LABEL[booking.status]}
+                </Badge>
+              </TableCell>
+              <TableCell className="space-x-2 text-right">
+                {booking.status === "pending" && (
+                  <>
+                    <Button
+                      size="sm"
+                      disabled={isPending}
+                      onClick={() => approve.mutate({ id: booking.id })}
+                    >
+                      Approve
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={isPending}
+                      onClick={() => setRejectingId(booking.id)}
+                    >
+                      Reject
+                    </Button>
+                  </>
+                )}
+                {booking.status === "approved" && (
                   <Button
                     variant="outline"
                     size="sm"
-                    disabled={updateStatus.isPending}
-                    onClick={() => updateStatus.mutate({ id: booking.id, status: "completed" })}
+                    disabled={isPending}
+                    onClick={() => complete.mutate({ id: booking.id })}
                   >
                     Mark completed
                   </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={updateStatus.isPending}
-                    onClick={() => updateStatus.mutate({ id: booking.id, status: "cancelled" })}
-                  >
-                    Cancel
-                  </Button>
-                </>
-              )}
-            </TableCell>
-          </TableRow>
-        ))}
-      </TableBody>
-    </Table>
+                )}
+                <Button asChild variant="ghost" size="sm">
+                  <Link href={`/admin/bookings/${booking.id}`}>View</Link>
+                </Button>
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+
+      <Dialog
+        open={!!rejectingId}
+        onOpenChange={(open) => {
+          if (!open) {
+            setRejectingId(null);
+            setReason("");
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Reject booking</DialogTitle>
+            <DialogDescription>
+              Let the customer know why this request was rejected (optional).
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-1.5">
+            <Label htmlFor="reject-reason">Reason</Label>
+            <Textarea
+              id="reject-reason"
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              placeholder="e.g. Car needed for maintenance during these dates"
+              rows={3}
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRejectingId(null)}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              disabled={reject.isPending}
+              onClick={() =>
+                rejectingId &&
+                reject.mutate({ id: rejectingId, reason: reason.trim() || undefined })
+              }
+            >
+              {reject.isPending ? "Rejecting..." : "Reject booking"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }

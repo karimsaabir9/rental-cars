@@ -15,6 +15,7 @@ type Car = {
   transmission: string;
   fuelType: string;
   imageUrl: string | null;
+  displayStatus?: "available" | "rented" | "maintenance";
 };
 
 export function CarCard({ car }: { car: Car }) {
@@ -37,6 +38,11 @@ export function CarCard({ car }: { car: Car }) {
           <span className="absolute top-3 left-3 rounded-md bg-black/60 px-2 py-1 font-mono text-xs tracking-wide text-white uppercase backdrop-blur-sm">
             {carCategoryLabel(car.category)}
           </span>
+          {car.displayStatus === "rented" && (
+            <span className="absolute top-3 right-3 rounded-md bg-accent px-2 py-1 font-mono text-xs tracking-wide text-accent-foreground uppercase backdrop-blur-sm">
+              Rented
+            </span>
+          )}
         </div>
         <CardContent className="pt-4">
           <h3 className="font-display font-semibold">

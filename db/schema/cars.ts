@@ -2,7 +2,12 @@ import { pgTable, text, integer, numeric, timestamp, pgEnum } from "drizzle-orm/
 import { createId } from "@/lib/id";
 import { CAR_CATEGORY_VALUES } from "@/lib/car-categories";
 
-export const carStatusEnum = pgEnum("car_status", ["available", "unavailable"]);
+// "unavailable" is legacy and no longer written by the app (superseded by
+// "maintenance"), kept in the enum to avoid a destructive migration. "rented"
+// is intentionally not a stored value -- it's derived at query time from
+// whether an approved booking currently covers today, so it can never go
+// stale independent of the bookings table.
+export const carStatusEnum = pgEnum("car_status", ["available", "unavailable", "maintenance"]);
 export const transmissionEnum = pgEnum("transmission", ["automatic", "manual"]);
 export const fuelTypeEnum = pgEnum("fuel_type", ["petrol", "diesel", "electric", "hybrid"]);
 export const carCategoryEnum = pgEnum("car_category", CAR_CATEGORY_VALUES);
