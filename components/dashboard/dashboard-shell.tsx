@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, CalendarRange, Car, Users, CreditCard } from "lucide-react";
+import { LayoutDashboard, CalendarRange, Car, Users, CreditCard, Star } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { UserMenu } from "@/components/dashboard/user-menu";
 
@@ -17,6 +17,7 @@ const NAV_ITEMS_BY_ROLE = {
     { href: "/admin/cars", label: "Fleet", icon: Car },
     { href: "/admin/bookings", label: "Bookings", icon: CalendarRange },
     { href: "/admin/payments", label: "Payments", icon: CreditCard },
+    { href: "/admin/reviews", label: "Reviews", icon: Star },
     { href: "/admin/users", label: "Users", icon: Users },
   ],
 } as const;

@@ -1,9 +1,9 @@
 import { z } from "zod";
-import { and, eq, lte, gte, asc, inArray } from "drizzle-orm";
+import { and, eq, lte, gte, asc, inArray, sql } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { createTRPCRouter, publicProcedure, adminProcedure } from "@/trpc/init";
 import { db } from "@/db";
-import { bookings, cars } from "@/db/schema";
+import { bookings, cars, reviews } from "@/db/schema";
 import { CAR_CATEGORY_VALUES } from "@/lib/car-categories";
 import { computeCarDisplayStatus } from "@/lib/car-status";
 
@@ -32,6 +32,30 @@ async function getCurrentlyRentedCarIds() {
   return new Set(rows.map((r) => r.carId));
 }
 
+type RatingStats = { avgRating: number; reviewCount: number };
+
+// Aggregated per car so list queries don't need N+1 subqueries.
+async function getRatingStats() {
+  const rows = await db
+    .select({
+      carId: reviews.carId,
+      avgRating: sql<string>`avg(${reviews.rating})`,
+      count: sql<number>`count(*)`,
+    })
+    .from(reviews)
+    .groupBy(reviews.carId);
+  const map = new Map<string, RatingStats>();
+  for (const row of rows) {
+    map.set(row.carId, { avgRating: Number(row.avgRating), reviewCount: Number(row.count) });
+  }
+  return map;
+}
+
+function withRatingStats<T extends { id: string }>(car: T, stats: Map<string, RatingStats>) {
+  const s = stats.get(car.id);
+  return { ...car, avgRating: s?.avgRating ?? null, reviewCount: s?.reviewCount ?? 0 };
+}
+
 export const carsRouter = createTRPCRouter({
   list: publicProcedure
     .input(
@@ -49,26 +73,32 @@ export const carsRouter = createTRPCRouter({
       if (input?.transmission) filters.push(eq(cars.transmission, input.transmission));
       if (input?.maxPrice) filters.push(lte(cars.pricePerDay, String(input.maxPrice)));
 
-      const [rows, rentedIds] = await Promise.all([
+      const [rows, rentedIds, ratingStats] = await Promise.all([
         db
           .select()
           .from(cars)
           .where(and(...filters))
           .orderBy(asc(cars.pricePerDay)),
         getCurrentlyRentedCarIds(),
+        getRatingStats(),
       ]);
 
-      return rows.map((car) => ({
-        ...car,
-        displayStatus: computeCarDisplayStatus(car.status, rentedIds.has(car.id)),
-      }));
+      return rows.map((car) =>
+        withRatingStats(
+          { ...car, displayStatus: computeCarDisplayStatus(car.status, rentedIds.has(car.id)) },
+          ratingStats,
+        ),
+      );
     }),
 
   getById: publicProcedure.input(z.object({ id: z.string() })).query(async ({ input }) => {
     const car = await db.query.cars.findFirst({ where: eq(cars.id, input.id) });
     if (!car) throw new TRPCError({ code: "NOT_FOUND" });
-    const rentedIds = await getCurrentlyRentedCarIds();
-    return { ...car, displayStatus: computeCarDisplayStatus(car.status, rentedIds.has(car.id)) };
+    const [rentedIds, ratingStats] = await Promise.all([getCurrentlyRentedCarIds(), getRatingStats()]);
+    return withRatingStats(
+      { ...car, displayStatus: computeCarDisplayStatus(car.status, rentedIds.has(car.id)) },
+      ratingStats,
+    );
   }),
 
   getAvailability: publicProcedure
@@ -87,14 +117,17 @@ export const carsRouter = createTRPCRouter({
     }),
 
   adminList: adminProcedure.query(async () => {
-    const [rows, rentedIds] = await Promise.all([
+    const [rows, rentedIds, ratingStats] = await Promise.all([
       db.select().from(cars).orderBy(asc(cars.make)),
       getCurrentlyRentedCarIds(),
+      getRatingStats(),
     ]);
-    return rows.map((car) => ({
-      ...car,
-      displayStatus: computeCarDisplayStatus(car.status, rentedIds.has(car.id)),
-    }));
+    return rows.map((car) =>
+      withRatingStats(
+        { ...car, displayStatus: computeCarDisplayStatus(car.status, rentedIds.has(car.id)) },
+        ratingStats,
+      ),
+    );
   }),
 
   create: adminProcedure.input(carInput).mutation(async ({ input }) => {

@@ -4,15 +4,18 @@ import { cars } from "@/db/schema/cars";
 import { bookings } from "@/db/schema/bookings";
 import { bookingEvents } from "@/db/schema/booking-events";
 import { payments } from "@/db/schema/payments";
+import { reviews } from "@/db/schema/reviews";
 
 export const userRelations = relations(user, ({ many }) => ({
   bookings: many(bookings),
   bookingEvents: many(bookingEvents),
   payments: many(payments),
+  reviews: many(reviews),
 }));
 
 export const carsRelations = relations(cars, ({ many }) => ({
   bookings: many(bookings),
+  reviews: many(reviews),
 }));
 
 export const bookingsRelations = relations(bookings, ({ one, many }) => ({
@@ -30,4 +33,9 @@ export const bookingEventsRelations = relations(bookingEvents, ({ one }) => ({
 export const paymentsRelations = relations(payments, ({ one }) => ({
   booking: one(bookings, { fields: [payments.bookingId], references: [bookings.id] }),
   user: one(user, { fields: [payments.userId], references: [user.id] }),
+}));
+
+export const reviewsRelations = relations(reviews, ({ one }) => ({
+  car: one(cars, { fields: [reviews.carId], references: [cars.id] }),
+  user: one(user, { fields: [reviews.userId], references: [user.id] }),
 }));

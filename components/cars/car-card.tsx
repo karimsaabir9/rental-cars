@@ -1,6 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
-import { Car as CarIcon, Users, Fuel, Gauge } from "lucide-react";
+import { Car as CarIcon, Users, Fuel, Gauge, Star } from "lucide-react";
 import { Card, CardContent, CardFooter } from "@/components/ui/card";
 import { carCategoryLabel } from "@/lib/car-categories";
 
@@ -16,6 +16,8 @@ type Car = {
   fuelType: string;
   imageUrl: string | null;
   displayStatus?: "available" | "rented" | "maintenance";
+  avgRating?: number | null;
+  reviewCount?: number;
 };
 
 export function CarCard({ car }: { car: Car }) {
@@ -45,10 +47,18 @@ export function CarCard({ car }: { car: Car }) {
           )}
         </div>
         <CardContent className="pt-4">
-          <h3 className="font-display font-semibold">
-            {car.make} {car.model}{" "}
-            <span className="font-body text-muted-foreground font-normal">{car.year}</span>
-          </h3>
+          <div className="flex items-center justify-between gap-2">
+            <h3 className="font-display font-semibold">
+              {car.make} {car.model}{" "}
+              <span className="font-body text-muted-foreground font-normal">{car.year}</span>
+            </h3>
+            {!!car.reviewCount && car.avgRating != null && (
+              <span className="flex shrink-0 items-center gap-1 text-sm text-muted-foreground">
+                <Star className="size-3.5 fill-accent text-accent" />
+                {car.avgRating.toFixed(1)}
+              </span>
+            )}
+          </div>
           <div className="mt-2 flex flex-wrap gap-3 text-sm text-muted-foreground">
             <span className="flex items-center gap-1">
               <Users className="size-3.5" /> {car.seats}

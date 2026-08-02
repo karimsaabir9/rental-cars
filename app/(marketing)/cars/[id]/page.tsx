@@ -10,6 +10,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Reveal } from "@/components/motion/reveal";
 import { carCategoryLabel } from "@/lib/car-categories";
 import { AvailabilityCalendar } from "@/components/bookings/availability-calendar";
+import { StarRatingDisplay } from "@/components/reviews/star-rating";
+import { ReviewsSection } from "@/components/reviews/reviews-section";
 
 const SPECS = (car: {
   seats: number;
@@ -82,6 +84,16 @@ export default async function CarDetailPage({
               <span className="text-muted-foreground font-normal">{car.year}</span>
             </h1>
 
+            {car.reviewCount > 0 && (
+              <div className="mt-2 flex items-center gap-2">
+                <StarRatingDisplay rating={car.avgRating ?? 0} />
+                <span className="text-sm text-muted-foreground">
+                  {car.avgRating?.toFixed(1)} ({car.reviewCount} review
+                  {car.reviewCount > 1 ? "s" : ""})
+                </span>
+              </div>
+            )}
+
             {car.description && (
               <p className="mt-4 max-w-xl text-muted-foreground">{car.description}</p>
             )}
@@ -134,6 +146,13 @@ export default async function CarDetailPage({
           </Card>
         </Reveal>
       </div>
+
+      <Reveal delay={0.15}>
+        <div className="mt-14 max-w-2xl">
+          <h2 className="mb-6 font-display text-2xl font-semibold tracking-tight">Reviews</h2>
+          <ReviewsSection carId={car.id} />
+        </div>
+      </Reveal>
     </main>
   );
 }
