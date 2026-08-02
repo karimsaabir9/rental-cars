@@ -38,7 +38,10 @@ export function CarsTable() {
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
 
   const setAvailability = trpc.cars.setAvailability.useMutation({
-    onSuccess: () => utils.cars.adminList.invalidate(),
+    onSuccess: (_data, variables) => {
+      toast.success(`Car marked ${variables.status}.`);
+      utils.cars.adminList.invalidate();
+    },
     onError: (error) => toast.error(error.message),
   });
 

@@ -44,6 +44,7 @@ export function SignupForm() {
       return;
     }
 
+    toast.success("Account created.");
     // All public sign-ups default to role "user" (enforced server-side).
     router.push("/dashboard");
     router.refresh();

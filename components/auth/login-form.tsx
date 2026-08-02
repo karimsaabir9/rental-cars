@@ -44,6 +44,7 @@ export function LoginForm() {
       return;
     }
 
+    toast.success("Signed in.");
     const redirectTo = searchParams.get("redirectTo");
     router.push(redirectTo ?? "/dashboard");
     router.refresh();

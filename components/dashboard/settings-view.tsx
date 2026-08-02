@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Camera, Mail, Shield, User as UserIcon, X } from "lucide-react";
 import { authClient } from "@/lib/auth-client";
@@ -31,6 +32,7 @@ export function SettingsView({
   image?: string | null;
   role: "user" | "admin";
 }) {
+  const router = useRouter();
   const [avatarUrl, setAvatarUrl] = useState(image ?? undefined);
   const [pendingImageSrc, setPendingImageSrc] = useState<string | null>(null);
   const [cropOpen, setCropOpen] = useState(false);
@@ -60,7 +62,10 @@ export function SettingsView({
     const { error } = await authClient.updateUser({ image: url });
     if (error) {
       toast.error(error.message ?? "Photo uploaded, but couldn't be saved to your profile.");
+      return;
     }
+    toast.success("Profile photo updated.");
+    router.refresh();
   }
 
   async function handleRemoveAvatar() {
@@ -73,6 +78,7 @@ export function SettingsView({
     }
     setAvatarUrl(undefined);
     toast.success("Profile photo removed.");
+    router.refresh();
   }
 
   async function handleNameSubmit(e: React.FormEvent) {
@@ -85,6 +91,7 @@ export function SettingsView({
       return;
     }
     toast.success("Profile updated.");
+    router.refresh();
   }
 
   async function handleEmailSubmit(e: React.FormEvent) {
