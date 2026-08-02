@@ -1,0 +1,122 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant showroom (&:is(.showroom *));
+
+:root {
+  /* Instrument Cluster design system — see design plan in project notes */
+  --background: #f7f7f5;
+  --foreground: #12151b;
+  --card: #ffffff;
+  --card-foreground: #12151b;
+  --popover: #ffffff;
+  --popover-foreground: #12151b;
+  --primary: #12151b;
+  --primary-foreground: #f7f7f5;
+  --secondary: #eeeeec;
+  --secondary-foreground: #12151b;
+  --muted: #f0efec;
+  --muted-foreground: #5b6472;
+  --accent: #e8a33d;
+  --accent-foreground: #12151b;
+  --destructive: #c0392b;
+  --destructive-foreground: #ffffff;
+  --success: #3f9142;
+  --border: #e4e2dc;
+  --input: #e4e2dc;
+  --ring: #e8a33d;
+  --radius: 0.625rem;
+
+  --font-display: var(--font-space-grotesk);
+  --font-body: var(--font-plex-sans);
+  --font-mono: var(--font-plex-mono);
+}
+
+/* Cinematic "showroom" scope — used for marketing hero/detail sections */
+.showroom {
+  --background: #12151b;
+  --foreground: #f7f7f5;
+  --card: #1b1f27;
+  --card-foreground: #f7f7f5;
+  --popover: #1b1f27;
+  --popover-foreground: #f7f7f5;
+  --primary: #e8a33d;
+  --primary-foreground: #12151b;
+  --secondary: #232833;
+  --secondary-foreground: #f7f7f5;
+  --muted: #1e222b;
+  --muted-foreground: #a8adb8;
+  --accent: #e8a33d;
+  --accent-foreground: #12151b;
+  --border: color-mix(in oklab, #f7f7f5 12%, transparent);
+  --input: color-mix(in oklab, #f7f7f5 14%, transparent);
+  --ring: #e8a33d;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-success: var(--success);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+
+  --font-sans: var(--font-body);
+  --font-display: var(--font-display);
+  --font-mono: var(--font-mono);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground font-sans;
+  }
+  h1,
+  h2,
+  h3,
+  h4 {
+    @apply font-display;
+  }
+}
+
+@layer utilities {
+  /* Instrument-cluster readout chip — the app's signature motif for numeric data */
+  .readout {
+    @apply inline-flex items-center gap-1 rounded-md border border-border bg-muted px-2 py-1 font-mono text-sm tabular-nums text-foreground;
+  }
+  .showroom .readout {
+    @apply border-white/10 bg-black/30 text-accent;
+    text-shadow: 0 0 12px color-mix(in oklab, var(--accent) 55%, transparent);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
