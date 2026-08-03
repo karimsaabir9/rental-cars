@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { toast } from "sonner";
+import { Download } from "lucide-react";
 import { trpc } from "@/trpc/client";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -26,6 +27,22 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { BOOKING_STATUS_LABEL, BOOKING_STATUS_VARIANT } from "@/lib/booking-status";
+import { toCsv, downloadCsv } from "@/lib/csv";
+import type { RouterOutputs } from "@/trpc/routers/_app";
+
+function exportBookingsCsv(bookings: RouterOutputs["bookings"]["listAll"]) {
+  const csv = toCsv(bookings, [
+    { label: "Customer", value: (b) => b.user.name },
+    { label: "Email", value: (b) => b.user.email },
+    { label: "Car", value: (b) => `${b.car.make} ${b.car.model}` },
+    { label: "Start date", value: (b) => b.startDate },
+    { label: "End date", value: (b) => b.endDate },
+    { label: "Total price", value: (b) => b.totalPrice },
+    { label: "Status", value: (b) => b.status },
+    { label: "Created at", value: (b) => b.createdAt.toISOString() },
+  ]);
+  downloadCsv(`bookings-${new Date().toISOString().slice(0, 10)}.csv`, csv);
+}
 
 export function AdminBookingsTable() {
   const { data: bookings, isLoading } = trpc.bookings.listAll.useQuery();
@@ -77,6 +94,12 @@ export function AdminBookingsTable() {
 
   return (
     <>
+      <div className="mb-4 flex justify-end">
+        <Button variant="outline" size="sm" onClick={() => exportBookingsCsv(bookings)}>
+          <Download />
+          Export CSV
+        </Button>
+      </div>
       <Table>
         <TableHeader>
           <TableRow>
