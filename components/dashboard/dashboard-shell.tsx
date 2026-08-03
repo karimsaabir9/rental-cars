@@ -30,6 +30,21 @@ const SETTINGS_HREF_BY_ROLE = {
 
 type NavItem = { href: string; label: string; icon: React.ElementType };
 
+// Matches the "Rental" + amber "Cars" split used on the marketing site
+// header, so the dashboard reads as the same brand instead of a plain
+// black-and-white admin panel.
+function BrandTitle({ title }: { title: string }) {
+  if (title.startsWith("RentalCars")) {
+    return (
+      <>
+        Rental<span className="text-accent">Cars</span>
+        {title.slice("RentalCars".length)}
+      </>
+    );
+  }
+  return <>{title}</>;
+}
+
 function NavLinks({
   items,
   pathname,
@@ -63,7 +78,7 @@ function NavLinks({
             className={cn(
               "flex shrink-0 items-center gap-2 rounded-md px-3 py-2 text-sm font-medium whitespace-nowrap transition-colors duration-200",
               active
-                ? "bg-primary text-primary-foreground"
+                ? "bg-accent text-accent-foreground"
                 : "text-muted-foreground hover:bg-secondary hover:text-foreground",
             )}
           >
@@ -99,7 +114,9 @@ export function DashboardShell({
     <div className="flex min-h-screen flex-col lg:flex-row">
       {/* Mobile top bar */}
       <header className="flex items-center justify-between border-b border-border bg-card px-4 py-3 lg:hidden">
-        <span className="font-display text-base font-semibold tracking-tight">{title}</span>
+        <span className="font-display text-base font-semibold tracking-tight">
+          <BrandTitle title={title} />
+        </span>
         <div className="flex items-center gap-1">
           <NotificationBell />
           <UserMenu
@@ -125,7 +142,9 @@ export function DashboardShell({
       {/* Desktop sidebar */}
       <aside className="hidden w-64 shrink-0 flex-col border-r border-border bg-card p-4 lg:flex">
         <div className="mb-8 px-2">
-          <span className="font-display text-lg font-semibold tracking-tight">{title}</span>
+          <span className="font-display text-lg font-semibold tracking-tight">
+            <BrandTitle title={title} />
+          </span>
         </div>
         <NavLinks
           items={navItems}
