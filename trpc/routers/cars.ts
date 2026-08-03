@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { and, eq, lte, gte, asc, inArray, sql, ne } from "drizzle-orm";
+import { and, eq, lte, gte, asc, inArray, sql, ne, or, ilike } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { createTRPCRouter, publicProcedure, adminProcedure } from "@/trpc/init";
 import { db } from "@/db";
@@ -108,6 +108,7 @@ export const carsRouter = createTRPCRouter({
           minSeats: z.number().int().min(1).max(15).optional(),
           minPrice: z.number().positive().optional(),
           maxPrice: z.number().positive().optional(),
+          search: z.string().max(100).optional(),
           sort: z.enum(CAR_SORT_VALUES).optional(),
         })
         .optional(),
@@ -120,6 +121,10 @@ export const carsRouter = createTRPCRouter({
       if (input?.minSeats) filters.push(gte(cars.seats, input.minSeats));
       if (input?.minPrice) filters.push(gte(cars.pricePerDay, String(input.minPrice)));
       if (input?.maxPrice) filters.push(lte(cars.pricePerDay, String(input.maxPrice)));
+      if (input?.search) {
+        const term = `%${input.search}%`;
+        filters.push(or(ilike(cars.make, term), ilike(cars.model, term))!);
+      }
 
       const [rows, rentedIds, ratingStats, bookingCounts] = await Promise.all([
         db

@@ -1,6 +1,7 @@
 "use client";
 
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
+import { Search } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -38,6 +39,24 @@ export function CarFilters({ makes }: { makes: string[] }) {
 
   return (
     <div className="flex flex-wrap items-end gap-4">
+      <div className="space-y-1.5">
+        <Label htmlFor="search">Search</Label>
+        <div className="relative">
+          <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            id="search"
+            type="text"
+            className="w-44 pl-8"
+            defaultValue={searchParams.get("search") ?? ""}
+            onBlur={(e) => updateParam("search", e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") updateParam("search", e.currentTarget.value);
+            }}
+            placeholder="Make or model"
+          />
+        </div>
+      </div>
+
       <div className="space-y-1.5">
         <Label>Category</Label>
         <Select

@@ -18,6 +18,7 @@ export default async function CarsPage({
     minSeats?: string;
     minPrice?: string;
     maxPrice?: string;
+    search?: string;
     sort?: string;
   }>;
 }) {
@@ -37,6 +38,7 @@ export default async function CarsPage({
       minSeats: params.minSeats ? Number(params.minSeats) : undefined,
       minPrice: params.minPrice ? Number(params.minPrice) : undefined,
       maxPrice: params.maxPrice ? Number(params.maxPrice) : undefined,
+      search: params.search,
       sort,
     }),
     caller.cars.listMakes(),
