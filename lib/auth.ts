@@ -9,6 +9,14 @@ export const auth = betterAuth({
     provider: "pg",
     schema,
   }),
+  // Persist rate-limit counters in Postgres instead of in-memory so limits
+  // are enforced consistently across serverless instances/cold starts, not
+  // just within a single warm one. Defaults (3 sign-in attempts/10s,
+  // 3 password-reset/verification requests/60s) are Better Auth's built-ins.
+  rateLimit: {
+    enabled: true,
+    storage: "database",
+  },
   emailAndPassword: {
     enabled: true,
     sendResetPassword: async ({ user, url }) => {
