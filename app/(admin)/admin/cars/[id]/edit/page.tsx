@@ -1,3 +1,5 @@
+import { notFound } from "next/navigation";
+import { TRPCError } from "@trpc/server";
 import { getServerCaller } from "@/trpc/server";
 import { CarForm } from "@/components/admin/car-form";
 
@@ -8,7 +10,10 @@ export default async function EditCarPage({
 }) {
   const { id } = await params;
   const caller = await getServerCaller();
-  const car = await caller.cars.getById({ id });
+  const car = await caller.cars.getById({ id }).catch((error) => {
+    if (error instanceof TRPCError && error.code === "NOT_FOUND") notFound();
+    throw error;
+  });
 
   return (
     <div>

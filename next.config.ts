@@ -3,9 +3,14 @@ import type { NextConfig } from "next";
 // Cloudinary/Unsplash images + Better Auth's own endpoints are the only
 // cross-origin sources this app legitimately loads; everything else is
 // same-origin only.
+//
+// 'unsafe-eval' is added in development only -- React's dev-mode debugging
+// (reconstructing component stacks, Turbopack HMR) relies on eval(), which
+// this CSP otherwise blocks. React never uses eval() in production, so
+// production keeps the stricter policy.
 const csp = [
   "default-src 'self'",
-  "script-src 'self' 'unsafe-inline'",
+  `script-src 'self' 'unsafe-inline'${process.env.NODE_ENV !== "production" ? " 'unsafe-eval'" : ""}`,
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: https://res.cloudinary.com https://images.unsplash.com",
   "font-src 'self' data:",
