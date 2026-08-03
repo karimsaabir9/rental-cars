@@ -17,10 +17,14 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { Pagination } from "@/components/ui/pagination";
 import { PAYMENT_METHOD_LABEL, PAYMENT_STATUS_LABEL, PAYMENT_STATUS_VARIANT } from "@/lib/payment-status";
 import { toCsv, downloadCsv } from "@/lib/csv";
 import { matchesQuery } from "@/lib/search";
+import { paginate } from "@/lib/paginate";
 import type { RouterOutputs } from "@/trpc/routers/_app";
+
+const PAGE_SIZE = 15;
 
 function paymentMatches(payment: RouterOutputs["payments"]["listAll"][number], query: string) {
   return matchesQuery(
@@ -48,6 +52,7 @@ export function AdminPaymentsTable() {
   const { data: payments, isLoading } = trpc.payments.listAll.useQuery();
   const utils = trpc.useUtils();
   const [query, setQuery] = useState("");
+  const [page, setPage] = useState(1);
 
   const invalidate = () => utils.payments.listAll.invalidate();
 
@@ -81,6 +86,7 @@ export function AdminPaymentsTable() {
 
   const isPending = markCashPaid.isPending || refund.isPending;
   const filtered = payments.filter((p) => paymentMatches(p, query));
+  const { items: pageItems, page: currentPage, pageCount } = paginate(filtered, page, PAGE_SIZE);
 
   return (
     <>
@@ -91,7 +97,10 @@ export function AdminPaymentsTable() {
             type="text"
             className="w-64 pl-8"
             value={query}
-            onChange={(e) => setQuery(e.target.value)}
+            onChange={(e) => {
+              setQuery(e.target.value);
+              setPage(1);
+            }}
             placeholder="Search customer or car"
           />
         </div>
@@ -119,7 +128,7 @@ export function AdminPaymentsTable() {
               </TableCell>
             </TableRow>
           )}
-          {filtered.map((payment) => (
+          {pageItems.map((payment) => (
             <TableRow key={payment.id}>
               <TableCell>
                 {payment.user.name}
@@ -163,6 +172,7 @@ export function AdminPaymentsTable() {
           ))}
         </TableBody>
       </Table>
+      <Pagination page={currentPage} pageCount={pageCount} onPageChange={setPage} />
     </>
   );
 }

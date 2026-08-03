@@ -181,7 +181,7 @@ export const carsRouter = createTRPCRouter({
 
   adminList: adminProcedure.query(async () => {
     const [rows, rentedIds, ratingStats] = await Promise.all([
-      db.select().from(cars).orderBy(asc(cars.make)),
+      db.select().from(cars).orderBy(asc(cars.make)).limit(500),
       getCurrentlyRentedCarIds(),
       getRatingStats(),
     ]);

@@ -146,10 +146,15 @@ export const bookingsRouter = createTRPCRouter({
       });
     }),
 
+  // Capped rather than paginated at the query layer -- the admin table
+  // paginates client-side over this set, and 500 is comfortably above any
+  // realistic single-page admin review workload while still bounding
+  // memory/payload size as the table grows.
   listAll: adminProcedure.query(async () => {
     return db.query.bookings.findMany({
       with: { car: true, user: true },
       orderBy: (b, { desc }) => [desc(b.createdAt)],
+      limit: 500,
     });
   }),
 

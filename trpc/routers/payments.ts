@@ -30,10 +30,13 @@ export const paymentsRouter = createTRPCRouter({
     });
   }),
 
+  // See bookings.listAll for why this is capped rather than paginated at
+  // the query layer.
   listAll: adminProcedure.query(async () => {
     return db.query.payments.findMany({
       with: { booking: { with: { car: true } }, user: true },
       orderBy: (p, { desc }) => [desc(p.createdAt)],
+      limit: 500,
     });
   }),
 

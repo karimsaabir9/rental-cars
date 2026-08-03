@@ -27,10 +27,14 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Pagination } from "@/components/ui/pagination";
 import { BOOKING_STATUS_LABEL, BOOKING_STATUS_VARIANT } from "@/lib/booking-status";
 import { toCsv, downloadCsv } from "@/lib/csv";
 import { matchesQuery } from "@/lib/search";
+import { paginate } from "@/lib/paginate";
 import type { RouterOutputs } from "@/trpc/routers/_app";
+
+const PAGE_SIZE = 15;
 
 function bookingMatches(booking: RouterOutputs["bookings"]["listAll"][number], query: string) {
   return matchesQuery(
@@ -59,6 +63,7 @@ export function AdminBookingsTable() {
   const [rejectingId, setRejectingId] = useState<string | null>(null);
   const [reason, setReason] = useState("");
   const [query, setQuery] = useState("");
+  const [page, setPage] = useState(1);
 
   const invalidate = () => utils.bookings.listAll.invalidate();
 
@@ -102,6 +107,7 @@ export function AdminBookingsTable() {
 
   const isPending = approve.isPending || reject.isPending || complete.isPending;
   const filtered = bookings.filter((b) => bookingMatches(b, query));
+  const { items: pageItems, page: currentPage, pageCount } = paginate(filtered, page, PAGE_SIZE);
 
   return (
     <>
@@ -112,7 +118,10 @@ export function AdminBookingsTable() {
             type="text"
             className="w-64 pl-8"
             value={query}
-            onChange={(e) => setQuery(e.target.value)}
+            onChange={(e) => {
+              setQuery(e.target.value);
+              setPage(1);
+            }}
             placeholder="Search customer or car"
           />
         </div>
@@ -140,7 +149,7 @@ export function AdminBookingsTable() {
               </TableCell>
             </TableRow>
           )}
-          {filtered.map((booking) => (
+          {pageItems.map((booking) => (
             <TableRow key={booking.id}>
               <TableCell>
                 {booking.user.name}
@@ -196,6 +205,7 @@ export function AdminBookingsTable() {
           ))}
         </TableBody>
       </Table>
+      <Pagination page={currentPage} pageCount={pageCount} onPageChange={setPage} />
 
       <Dialog
         open={!!rejectingId}

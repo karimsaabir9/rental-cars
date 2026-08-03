@@ -17,7 +17,8 @@ export const usersRouter = createTRPCRouter({
         createdAt: user.createdAt,
       })
       .from(user)
-      .orderBy(user.createdAt);
+      .orderBy(user.createdAt)
+      .limit(500);
   }),
 
   // Every account created here is a "user". The seeded admin is the only
