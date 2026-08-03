@@ -17,7 +17,9 @@ export default async function MarketingLayout({ children }: { children: React.Re
   return (
     <div className="flex min-h-screen flex-col">
       <SiteHeader user={user} />
-      <div className="flex-1">{children}</div>
+      <div id="main-content" className="flex-1">
+        {children}
+      </div>
       <SiteFooter user={user} />
     </div>
   );

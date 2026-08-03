@@ -58,12 +58,12 @@ export function CarFilters({ makes }: { makes: string[] }) {
       </div>
 
       <div className="space-y-1.5">
-        <Label>Category</Label>
+        <Label htmlFor="category">Category</Label>
         <Select
           defaultValue={searchParams.get("category") ?? "all"}
           onValueChange={(v) => updateParam("category", v)}
         >
-          <SelectTrigger className="w-40">
+          <SelectTrigger id="category" className="w-40">
             <SelectValue placeholder="All categories" />
           </SelectTrigger>
           <SelectContent>
@@ -78,12 +78,12 @@ export function CarFilters({ makes }: { makes: string[] }) {
       </div>
 
       <div className="space-y-1.5">
-        <Label>Brand</Label>
+        <Label htmlFor="make">Brand</Label>
         <Select
           defaultValue={searchParams.get("make") ?? "all"}
           onValueChange={(v) => updateParam("make", v)}
         >
-          <SelectTrigger className="w-36">
+          <SelectTrigger id="make" className="w-36">
             <SelectValue placeholder="Any brand" />
           </SelectTrigger>
           <SelectContent>
@@ -98,12 +98,12 @@ export function CarFilters({ makes }: { makes: string[] }) {
       </div>
 
       <div className="space-y-1.5">
-        <Label>Transmission</Label>
+        <Label htmlFor="transmission">Transmission</Label>
         <Select
           defaultValue={searchParams.get("transmission") ?? "all"}
           onValueChange={(v) => updateParam("transmission", v)}
         >
-          <SelectTrigger className="w-40">
+          <SelectTrigger id="transmission" className="w-40">
             <SelectValue placeholder="Any" />
           </SelectTrigger>
           <SelectContent>
@@ -115,12 +115,12 @@ export function CarFilters({ makes }: { makes: string[] }) {
       </div>
 
       <div className="space-y-1.5">
-        <Label>Seats</Label>
+        <Label htmlFor="minSeats">Seats</Label>
         <Select
           defaultValue={searchParams.get("minSeats") ?? "all"}
           onValueChange={(v) => updateParam("minSeats", v)}
         >
-          <SelectTrigger className="w-28">
+          <SelectTrigger id="minSeats" className="w-28">
             <SelectValue placeholder="Any" />
           </SelectTrigger>
           <SelectContent>
@@ -160,12 +160,12 @@ export function CarFilters({ makes }: { makes: string[] }) {
       </div>
 
       <div className="space-y-1.5">
-        <Label>Sort by</Label>
+        <Label htmlFor="sort">Sort by</Label>
         <Select
           defaultValue={searchParams.get("sort") ?? "price_asc"}
           onValueChange={(v) => updateParam("sort", v)}
         >
-          <SelectTrigger className="w-48">
+          <SelectTrigger id="sort" className="w-48">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>

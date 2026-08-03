@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Space_Grotesk, IBM_Plex_Sans, IBM_Plex_Mono } from "next/font/google";
 import { Toaster } from "@/components/ui/sonner";
+import { SkipLink } from "@/components/skip-link";
 import { TRPCProvider } from "@/trpc/client";
 import "./globals.css";
 
@@ -37,6 +38,7 @@ export default function RootLayout({
       <body
         className={`${spaceGrotesk.variable} ${plexSans.variable} ${plexMono.variable} antialiased`}
       >
+        <SkipLink />
         <TRPCProvider>
           {children}
           <Toaster />

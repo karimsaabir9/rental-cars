@@ -150,7 +150,11 @@ export function DashboardShell({
         <header className="hidden items-center justify-end border-b border-border bg-card px-6 py-3 lg:flex">
           <NotificationBell />
         </header>
-        <main key={pathname} className="flex-1 animate-in fade-in slide-in-from-bottom-1 p-6 duration-300 sm:p-8">
+        <main
+          id="main-content"
+          key={pathname}
+          className="flex-1 animate-in fade-in slide-in-from-bottom-1 p-6 duration-300 sm:p-8"
+        >
           {children}
         </main>
       </div>
