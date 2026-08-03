@@ -116,29 +116,28 @@ export function CarFilters({ makes }: { makes: string[] }) {
       </div>
 
       <div className="space-y-1.5">
-        <Label htmlFor="minPrice">Min price/day</Label>
-        <Input
-          id="minPrice"
-          type="number"
-          min={0}
-          className="w-28"
-          defaultValue={searchParams.get("minPrice") ?? ""}
-          onBlur={(e) => updateParam("minPrice", e.target.value)}
-          placeholder="Any"
-        />
-      </div>
-
-      <div className="space-y-1.5">
-        <Label htmlFor="maxPrice">Max price/day</Label>
-        <Input
-          id="maxPrice"
-          type="number"
-          min={0}
-          className="w-28"
-          defaultValue={searchParams.get("maxPrice") ?? ""}
-          onBlur={(e) => updateParam("maxPrice", e.target.value)}
-          placeholder="Any"
-        />
+        <Label htmlFor="minPrice">Price/day</Label>
+        <div className="flex items-center gap-2">
+          <Input
+            id="minPrice"
+            type="number"
+            min={0}
+            className="w-24"
+            defaultValue={searchParams.get("minPrice") ?? ""}
+            onBlur={(e) => updateParam("minPrice", e.target.value)}
+            placeholder="Min"
+          />
+          <span className="text-muted-foreground">&ndash;</span>
+          <Input
+            id="maxPrice"
+            type="number"
+            min={0}
+            className="w-24"
+            defaultValue={searchParams.get("maxPrice") ?? ""}
+            onBlur={(e) => updateParam("maxPrice", e.target.value)}
+            placeholder="Max"
+          />
+        </div>
       </div>
 
       <div className="space-y-1.5">
