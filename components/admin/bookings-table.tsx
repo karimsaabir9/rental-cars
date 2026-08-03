@@ -3,10 +3,11 @@
 import Link from "next/link";
 import { useState } from "react";
 import { toast } from "sonner";
-import { Download } from "lucide-react";
+import { Download, Search } from "lucide-react";
 import { trpc } from "@/trpc/client";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -28,7 +29,15 @@ import {
 } from "@/components/ui/dialog";
 import { BOOKING_STATUS_LABEL, BOOKING_STATUS_VARIANT } from "@/lib/booking-status";
 import { toCsv, downloadCsv } from "@/lib/csv";
+import { matchesQuery } from "@/lib/search";
 import type { RouterOutputs } from "@/trpc/routers/_app";
+
+function bookingMatches(booking: RouterOutputs["bookings"]["listAll"][number], query: string) {
+  return matchesQuery(
+    [booking.user.name, booking.user.email, booking.car.make, booking.car.model],
+    query,
+  );
+}
 
 function exportBookingsCsv(bookings: RouterOutputs["bookings"]["listAll"]) {
   const csv = toCsv(bookings, [
@@ -49,6 +58,7 @@ export function AdminBookingsTable() {
   const utils = trpc.useUtils();
   const [rejectingId, setRejectingId] = useState<string | null>(null);
   const [reason, setReason] = useState("");
+  const [query, setQuery] = useState("");
 
   const invalidate = () => utils.bookings.listAll.invalidate();
 
@@ -91,10 +101,21 @@ export function AdminBookingsTable() {
   }
 
   const isPending = approve.isPending || reject.isPending || complete.isPending;
+  const filtered = bookings.filter((b) => bookingMatches(b, query));
 
   return (
     <>
-      <div className="mb-4 flex justify-end">
+      <div className="mb-4 flex items-center justify-between gap-4">
+        <div className="relative">
+          <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            type="text"
+            className="w-64 pl-8"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search customer or car"
+          />
+        </div>
         <Button variant="outline" size="sm" onClick={() => exportBookingsCsv(bookings)}>
           <Download />
           Export CSV
@@ -112,7 +133,14 @@ export function AdminBookingsTable() {
           </TableRow>
         </TableHeader>
         <TableBody>
-          {bookings.map((booking) => (
+          {filtered.length === 0 && (
+            <TableRow>
+              <TableCell colSpan={6} className="py-10 text-center text-muted-foreground">
+                No bookings match your search.
+              </TableCell>
+            </TableRow>
+          )}
+          {filtered.map((booking) => (
             <TableRow key={booking.id}>
               <TableCell>
                 {booking.user.name}
