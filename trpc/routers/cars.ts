@@ -1,11 +1,14 @@
 import { z } from "zod";
-import { and, eq, lte, gte, asc, inArray, sql } from "drizzle-orm";
+import { and, eq, lte, gte, asc, inArray, sql, ne } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { createTRPCRouter, publicProcedure, adminProcedure } from "@/trpc/init";
 import { db } from "@/db";
 import { bookings, cars, reviews } from "@/db/schema";
 import { CAR_CATEGORY_VALUES } from "@/lib/car-categories";
 import { computeCarDisplayStatus } from "@/lib/car-status";
+
+const CAR_SORT_VALUES = ["price_asc", "price_desc", "rating_desc", "popular_desc", "newest"] as const;
+type CarSort = (typeof CAR_SORT_VALUES)[number];
 
 const carInput = z.object({
   make: z.string().min(1).max(60),
@@ -56,6 +59,44 @@ function withRatingStats<T extends { id: string }>(car: T, stats: Map<string, Ra
   return { ...car, avgRating: s?.avgRating ?? null, reviewCount: s?.reviewCount ?? 0 };
 }
 
+// "Popular" is measured by how many bookings a car has actually had, not
+// just reviews -- most renters never leave one, so review count alone would
+// undercount cars that rent well but get skipped at review time.
+async function getBookingCounts() {
+  const rows = await db
+    .select({ carId: bookings.carId, count: sql<number>`count(*)` })
+    .from(bookings)
+    .where(and(ne(bookings.status, "cancelled"), ne(bookings.status, "rejected")))
+    .groupBy(bookings.carId);
+  return new Map(rows.map((r) => [r.carId, Number(r.count)]));
+}
+
+function sortCars<
+  T extends {
+    id: string;
+    pricePerDay: string;
+    avgRating: number | null;
+    createdAt: Date;
+  },
+>(rows: T[], sort: CarSort, bookingCounts: Map<string, number>) {
+  const sorted = [...rows];
+  switch (sort) {
+    case "price_desc":
+      return sorted.sort((a, b) => Number(b.pricePerDay) - Number(a.pricePerDay));
+    case "rating_desc":
+      return sorted.sort((a, b) => (b.avgRating ?? -1) - (a.avgRating ?? -1));
+    case "popular_desc":
+      return sorted.sort(
+        (a, b) => (bookingCounts.get(b.id) ?? 0) - (bookingCounts.get(a.id) ?? 0),
+      );
+    case "newest":
+      return sorted.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+    case "price_asc":
+    default:
+      return sorted.sort((a, b) => Number(a.pricePerDay) - Number(b.pricePerDay));
+  }
+}
+
 export const carsRouter = createTRPCRouter({
   list: publicProcedure
     .input(
@@ -63,7 +104,11 @@ export const carsRouter = createTRPCRouter({
         .object({
           category: z.enum(CAR_CATEGORY_VALUES).optional(),
           transmission: z.enum(["automatic", "manual"]).optional(),
+          make: z.string().max(60).optional(),
+          minSeats: z.number().int().min(1).max(15).optional(),
+          minPrice: z.number().positive().optional(),
           maxPrice: z.number().positive().optional(),
+          sort: z.enum(CAR_SORT_VALUES).optional(),
         })
         .optional(),
     )
@@ -71,25 +116,38 @@ export const carsRouter = createTRPCRouter({
       const filters = [eq(cars.status, "available")];
       if (input?.category) filters.push(eq(cars.category, input.category));
       if (input?.transmission) filters.push(eq(cars.transmission, input.transmission));
+      if (input?.make) filters.push(eq(cars.make, input.make));
+      if (input?.minSeats) filters.push(gte(cars.seats, input.minSeats));
+      if (input?.minPrice) filters.push(gte(cars.pricePerDay, String(input.minPrice)));
       if (input?.maxPrice) filters.push(lte(cars.pricePerDay, String(input.maxPrice)));
 
-      const [rows, rentedIds, ratingStats] = await Promise.all([
+      const [rows, rentedIds, ratingStats, bookingCounts] = await Promise.all([
         db
           .select()
           .from(cars)
-          .where(and(...filters))
-          .orderBy(asc(cars.pricePerDay)),
+          .where(and(...filters)),
         getCurrentlyRentedCarIds(),
         getRatingStats(),
+        getBookingCounts(),
       ]);
 
-      return rows.map((car) =>
+      const withStats = rows.map((car) =>
         withRatingStats(
           { ...car, displayStatus: computeCarDisplayStatus(car.status, rentedIds.has(car.id)) },
           ratingStats,
         ),
       );
+      return sortCars(withStats, input?.sort ?? "price_asc", bookingCounts);
     }),
+
+  listMakes: publicProcedure.query(async () => {
+    const rows = await db
+      .selectDistinct({ make: cars.make })
+      .from(cars)
+      .where(eq(cars.status, "available"))
+      .orderBy(asc(cars.make));
+    return rows.map((r) => r.make);
+  }),
 
   getById: publicProcedure.input(z.object({ id: z.string() })).query(async ({ input }) => {
     const car = await db.query.cars.findFirst({ where: eq(cars.id, input.id) });

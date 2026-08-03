@@ -5,10 +5,21 @@ import { CarFilters } from "@/components/cars/car-filters";
 import { RevealGroup } from "@/components/motion/reveal";
 import { CAR_CATEGORY_VALUES, type CarCategory } from "@/lib/car-categories";
 
+const SORT_VALUES = ["price_asc", "price_desc", "rating_desc", "popular_desc", "newest"] as const;
+type CarSort = (typeof SORT_VALUES)[number];
+
 export default async function CarsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ category?: string; transmission?: string; maxPrice?: string }>;
+  searchParams: Promise<{
+    category?: string;
+    make?: string;
+    transmission?: string;
+    minSeats?: string;
+    minPrice?: string;
+    maxPrice?: string;
+    sort?: string;
+  }>;
 }) {
   const params = await searchParams;
   const caller = await getServerCaller();
@@ -16,12 +27,20 @@ export default async function CarsPage({
   const category = CAR_CATEGORY_VALUES.includes(params.category as CarCategory)
     ? (params.category as CarCategory)
     : undefined;
+  const sort = SORT_VALUES.includes(params.sort as CarSort) ? (params.sort as CarSort) : undefined;
 
-  const cars = await caller.cars.list({
-    category,
-    transmission: params.transmission as "automatic" | "manual" | undefined,
-    maxPrice: params.maxPrice ? Number(params.maxPrice) : undefined,
-  });
+  const [cars, makes] = await Promise.all([
+    caller.cars.list({
+      category,
+      make: params.make,
+      transmission: params.transmission as "automatic" | "manual" | undefined,
+      minSeats: params.minSeats ? Number(params.minSeats) : undefined,
+      minPrice: params.minPrice ? Number(params.minPrice) : undefined,
+      maxPrice: params.maxPrice ? Number(params.maxPrice) : undefined,
+      sort,
+    }),
+    caller.cars.listMakes(),
+  ]);
 
   return (
     <main className="mx-auto max-w-6xl px-6 py-14">
@@ -29,7 +48,7 @@ export default async function CarsPage({
       <h1 className="mt-3 text-3xl font-semibold tracking-tight sm:text-4xl">Browse Cars</h1>
 
       <div className="mt-8 rounded-xl border border-border bg-card p-4">
-        <CarFilters />
+        <CarFilters makes={makes} />
       </div>
 
       {cars.length === 0 ? (
