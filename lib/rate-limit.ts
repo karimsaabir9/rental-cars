@@ -9,17 +9,18 @@ import { TRPCError } from "@trpc/server";
 // environments -- see README for the two-step Upstash setup -- so this
 // degrades to "no limiting" rather than breaking requests when the env
 // vars are absent.
-const redis =
-  process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN
-    ? new Redis({
-        url: process.env.UPSTASH_REDIS_REST_URL,
-        token: process.env.UPSTASH_REDIS_REST_TOKEN,
-      })
-    : null;
+// KV_REST_API_* is what Vercel's Upstash Marketplace integration injects;
+// UPSTASH_REDIS_REST_* is the name Upstash's own docs use for a
+// self-provisioned database. Accept either so this works regardless of how
+// the database was created.
+const restUrl = process.env.KV_REST_API_URL ?? process.env.UPSTASH_REDIS_REST_URL;
+const restToken = process.env.KV_REST_API_TOKEN ?? process.env.UPSTASH_REDIS_REST_TOKEN;
+
+const redis = restUrl && restToken ? new Redis({ url: restUrl, token: restToken }) : null;
 
 if (!redis) {
   console.warn(
-    "[rate-limit] UPSTASH_REDIS_REST_URL/TOKEN not set -- tRPC mutation rate limiting is disabled.",
+    "[rate-limit] KV_REST_API_URL/TOKEN (or UPSTASH_REDIS_REST_URL/TOKEN) not set -- tRPC mutation rate limiting is disabled.",
   );
 }
 

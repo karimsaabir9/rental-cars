@@ -1,15 +1,21 @@
 import { z } from "zod";
-import { and, eq, lte, gte, ne, inArray } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { createTRPCRouter, protectedProcedure, adminProcedure } from "@/trpc/init";
 import { db } from "@/db";
 import { bookings, bookingEvents, cars, payments } from "@/db/schema";
 import { notify, notifyAdmins } from "@/lib/notify";
 import { enforceRateLimit } from "@/lib/rate-limit";
-
-// "confirmed" is the legacy instant-book status; treated as active here so
-// any pre-workflow rows still correctly block overlapping dates.
-const ACTIVE_STATUSES = ["confirmed", "pending", "approved"] as const;
+import {
+  ACTIVE_BOOKING_STATUSES,
+  canApproveBooking,
+  canCancelBooking,
+  canCompleteBooking,
+  canRejectBooking,
+  computeTotalPrice,
+  findOverlappingBooking,
+  isValidBookingRange,
+} from "@/lib/booking-rules";
 
 const dateRangeInput = z.object({
   carId: z.string(),
@@ -23,16 +29,11 @@ async function assertNoOverlap(
   endDate: string,
   excludeBookingId?: string,
 ) {
-  const overlapping = await db.query.bookings.findFirst({
-    where: and(
-      eq(bookings.carId, carId),
-      inArray(bookings.status, ACTIVE_STATUSES),
-      lte(bookings.startDate, endDate),
-      gte(bookings.endDate, startDate),
-      ...(excludeBookingId ? [ne(bookings.id, excludeBookingId)] : []),
-    ),
+  const existing = await db.query.bookings.findMany({
+    where: and(eq(bookings.carId, carId), inArray(bookings.status, ACTIVE_BOOKING_STATUSES)),
   });
-  if (overlapping) {
+  const conflict = findOverlappingBooking({ startDate, endDate }, existing, excludeBookingId);
+  if (conflict) {
     throw new TRPCError({ code: "CONFLICT", message: "Car is already booked for these dates." });
   }
 }
@@ -41,12 +42,10 @@ export const bookingsRouter = createTRPCRouter({
   create: protectedProcedure.input(dateRangeInput).mutation(async ({ ctx, input }) => {
     await enforceRateLimit("bookingCreate", ctx.session.user.id);
 
-    if (input.endDate < input.startDate) {
-      throw new TRPCError({ code: "BAD_REQUEST", message: "End date must be after start date." });
-    }
     const today = new Date().toISOString().slice(0, 10);
-    if (input.startDate < today) {
-      throw new TRPCError({ code: "BAD_REQUEST", message: "Start date can't be in the past." });
+    const validation = isValidBookingRange(input, today);
+    if (!validation.valid) {
+      throw new TRPCError({ code: "BAD_REQUEST", message: validation.reason });
     }
 
     const car = await db.query.cars.findFirst({ where: eq(cars.id, input.carId) });
@@ -58,11 +57,7 @@ export const bookingsRouter = createTRPCRouter({
     const created = await db.transaction(async (tx) => {
       await assertNoOverlap(input.carId, input.startDate, input.endDate);
 
-      const days =
-        (new Date(input.endDate).getTime() - new Date(input.startDate).getTime()) /
-          (1000 * 60 * 60 * 24) +
-        1;
-      const totalPrice = (Number(car.pricePerDay) * days).toFixed(2);
+      const totalPrice = computeTotalPrice(Number(car.pricePerDay), input);
 
       const [created] = await tx
         .insert(bookings)
@@ -130,7 +125,7 @@ export const bookingsRouter = createTRPCRouter({
       if (!booking || booking.userId !== ctx.session.user.id) {
         throw new TRPCError({ code: "NOT_FOUND" });
       }
-      if (booking.status !== "pending") {
+      if (!canCancelBooking(booking.status)) {
         throw new TRPCError({
           code: "BAD_REQUEST",
           message: "Only pending bookings can be cancelled.",
@@ -164,7 +159,7 @@ export const bookingsRouter = createTRPCRouter({
       with: { car: true, user: true },
     });
     if (!booking) throw new TRPCError({ code: "NOT_FOUND" });
-    if (booking.status !== "pending") {
+    if (!canApproveBooking(booking.status)) {
       throw new TRPCError({ code: "BAD_REQUEST", message: "Only pending bookings can be approved." });
     }
     const updated = await db.transaction(async (tx) => {
@@ -206,7 +201,7 @@ export const bookingsRouter = createTRPCRouter({
         with: { car: true, user: true },
       });
       if (!booking) throw new TRPCError({ code: "NOT_FOUND" });
-      if (booking.status !== "pending") {
+      if (!canRejectBooking(booking.status)) {
         throw new TRPCError({ code: "BAD_REQUEST", message: "Only pending bookings can be rejected." });
       }
       const updated = await db.transaction(async (tx) => {
@@ -238,7 +233,7 @@ export const bookingsRouter = createTRPCRouter({
   complete: adminProcedure.input(z.object({ id: z.string() })).mutation(async ({ ctx, input }) => {
     const booking = await db.query.bookings.findFirst({ where: eq(bookings.id, input.id) });
     if (!booking) throw new TRPCError({ code: "NOT_FOUND" });
-    if (booking.status !== "approved") {
+    if (!canCompleteBooking(booking.status)) {
       throw new TRPCError({
         code: "BAD_REQUEST",
         message: "Only approved bookings can be marked completed.",
