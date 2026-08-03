@@ -8,17 +8,17 @@ import { CAR_CATEGORY_VALUES } from "@/lib/car-categories";
 import { computeCarDisplayStatus } from "@/lib/car-status";
 
 const carInput = z.object({
-  make: z.string().min(1),
-  model: z.string().min(1),
+  make: z.string().min(1).max(60),
+  model: z.string().min(1).max(60),
   year: z.number().int().min(1980).max(new Date().getFullYear() + 1),
   category: z.enum(CAR_CATEGORY_VALUES),
-  pricePerDay: z.number().positive(),
+  pricePerDay: z.number().positive().max(100000),
   seats: z.number().int().min(1).max(15),
   transmission: z.enum(["automatic", "manual"]),
   fuelType: z.enum(["petrol", "diesel", "electric", "hybrid"]),
-  licensePlate: z.string().min(1),
-  imageUrl: z.string().url().optional(),
-  description: z.string().optional(),
+  licensePlate: z.string().min(1).max(20),
+  imageUrl: z.string().url().max(2048).optional(),
+  description: z.string().max(2000).optional(),
 });
 
 // Cars with an approved booking covering today. Kept as a set lookup so list

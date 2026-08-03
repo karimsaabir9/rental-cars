@@ -26,9 +26,9 @@ export const usersRouter = createTRPCRouter({
   create: adminProcedure
     .input(
       z.object({
-        name: z.string().min(1),
-        email: z.email(),
-        password: z.string().min(8),
+        name: z.string().min(1).max(100),
+        email: z.email().max(254),
+        password: z.string().min(8).max(200),
       }),
     )
     .mutation(async ({ input }) => {
@@ -51,8 +51,8 @@ export const usersRouter = createTRPCRouter({
     .input(
       z.object({
         id: z.string(),
-        name: z.string().min(1).optional(),
-        email: z.email().optional(),
+        name: z.string().min(1).max(100).optional(),
+        email: z.email().max(254).optional(),
       }),
     )
     .mutation(async ({ input }) => {
