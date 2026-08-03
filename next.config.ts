@@ -8,13 +8,18 @@ import type { NextConfig } from "next";
 // (reconstructing component stacks, Turbopack HMR) relies on eval(), which
 // this CSP otherwise blocks. React never uses eval() in production, so
 // production keeps the stricter policy.
+//
+// connect-src also allows Sentry's ingest endpoint -- without it, the
+// browser silently drops every error report client-side (no console
+// warning, no thrown error) since Sentry's transport swallows the blocked
+// fetch/beacon rather than surfacing it.
 const csp = [
   "default-src 'self'",
   `script-src 'self' 'unsafe-inline'${process.env.NODE_ENV !== "production" ? " 'unsafe-eval'" : ""}`,
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: https://res.cloudinary.com https://images.unsplash.com",
   "font-src 'self' data:",
-  "connect-src 'self'",
+  "connect-src 'self' https://*.ingest.de.sentry.io https://*.sentry.io",
   "frame-ancestors 'none'",
   "base-uri 'self'",
   "form-action 'self'",
