@@ -141,7 +141,7 @@ export function CarFilters({ makes }: { makes: string[] }) {
         />
       </div>
 
-      <div className="ml-auto space-y-1.5">
+      <div className="space-y-1.5">
         <Label>Sort by</Label>
         <Select
           defaultValue={searchParams.get("sort") ?? "price_asc"}
