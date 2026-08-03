@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { LayoutDashboard, CalendarRange, Car, Users, CreditCard, Star } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { UserMenu } from "@/components/dashboard/user-menu";
+import { NotificationBell } from "@/components/dashboard/notification-bell";
 
 const NAV_ITEMS_BY_ROLE = {
   user: [
@@ -99,15 +100,18 @@ export function DashboardShell({
       {/* Mobile top bar */}
       <header className="flex items-center justify-between border-b border-border bg-card px-4 py-3 lg:hidden">
         <span className="font-display text-base font-semibold tracking-tight">{title}</span>
-        <UserMenu
-          name={userName}
-          email={userEmail}
-          image={userImage}
-          role={role}
-          settingsHref={settingsHref}
-          variant="compact"
-          align="end"
-        />
+        <div className="flex items-center gap-1">
+          <NotificationBell />
+          <UserMenu
+            name={userName}
+            email={userEmail}
+            image={userImage}
+            role={role}
+            settingsHref={settingsHref}
+            variant="compact"
+            align="end"
+          />
+        </div>
       </header>
       <div className="overflow-x-auto border-b border-border bg-card px-3 py-2 lg:hidden">
         <NavLinks
@@ -142,9 +146,14 @@ export function DashboardShell({
         </div>
       </aside>
 
-      <main key={pathname} className="flex-1 animate-in fade-in slide-in-from-bottom-1 p-6 duration-300 sm:p-8">
-        {children}
-      </main>
+      <div className="flex flex-1 flex-col">
+        <header className="hidden items-center justify-end border-b border-border bg-card px-6 py-3 lg:flex">
+          <NotificationBell />
+        </header>
+        <main key={pathname} className="flex-1 animate-in fade-in slide-in-from-bottom-1 p-6 duration-300 sm:p-8">
+          {children}
+        </main>
+      </div>
     </div>
   );
 }

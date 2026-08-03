@@ -4,6 +4,7 @@ import { TRPCError } from "@trpc/server";
 import { createTRPCRouter, protectedProcedure, adminProcedure } from "@/trpc/init";
 import { db } from "@/db";
 import { bookings, bookingEvents, cars, payments } from "@/db/schema";
+import { notify, notifyAdmins } from "@/lib/notify";
 
 // "confirmed" is the legacy instant-book status; treated as active here so
 // any pre-workflow rows still correctly block overlapping dates.
@@ -51,7 +52,7 @@ export const bookingsRouter = createTRPCRouter({
       throw new TRPCError({ code: "CONFLICT", message: "Car is not available for booking." });
     }
 
-    return db.transaction(async (tx) => {
+    const created = await db.transaction(async (tx) => {
       await assertNoOverlap(input.carId, input.startDate, input.endDate);
 
       const days =
@@ -80,6 +81,16 @@ export const bookingsRouter = createTRPCRouter({
 
       return created;
     });
+
+    await notifyAdmins({
+      type: "booking_pending",
+      title: "New booking request",
+      message: `${ctx.session.user.name} requested ${car.make} ${car.model} for ${created.startDate} → ${created.endDate}.`,
+      link: `/admin/bookings/${created.id}`,
+      ctaLabel: "Review request",
+    });
+
+    return created;
   }),
 
   listMine: protectedProcedure.query(async ({ ctx }) => {
@@ -145,12 +156,15 @@ export const bookingsRouter = createTRPCRouter({
   }),
 
   approve: adminProcedure.input(z.object({ id: z.string() })).mutation(async ({ ctx, input }) => {
-    const booking = await db.query.bookings.findFirst({ where: eq(bookings.id, input.id) });
+    const booking = await db.query.bookings.findFirst({
+      where: eq(bookings.id, input.id),
+      with: { car: true, user: true },
+    });
     if (!booking) throw new TRPCError({ code: "NOT_FOUND" });
     if (booking.status !== "pending") {
       throw new TRPCError({ code: "BAD_REQUEST", message: "Only pending bookings can be approved." });
     }
-    return db.transaction(async (tx) => {
+    const updated = await db.transaction(async (tx) => {
       await assertNoOverlap(booking.carId, booking.startDate, booking.endDate, booking.id);
       const [updated] = await tx
         .update(bookings)
@@ -169,17 +183,30 @@ export const bookingsRouter = createTRPCRouter({
       });
       return updated;
     });
+    await notify({
+      userId: booking.userId,
+      email: booking.user.email,
+      type: "booking_approved",
+      title: "Booking approved",
+      message: `Your ${booking.car.make} ${booking.car.model} booking for ${booking.startDate} → ${booking.endDate} has been approved.`,
+      link: `/dashboard/bookings/${booking.id}`,
+      ctaLabel: "View booking",
+    });
+    return updated;
   }),
 
   reject: adminProcedure
     .input(z.object({ id: z.string(), reason: z.string().max(500).optional() }))
     .mutation(async ({ ctx, input }) => {
-      const booking = await db.query.bookings.findFirst({ where: eq(bookings.id, input.id) });
+      const booking = await db.query.bookings.findFirst({
+        where: eq(bookings.id, input.id),
+        with: { car: true, user: true },
+      });
       if (!booking) throw new TRPCError({ code: "NOT_FOUND" });
       if (booking.status !== "pending") {
         throw new TRPCError({ code: "BAD_REQUEST", message: "Only pending bookings can be rejected." });
       }
-      return db.transaction(async (tx) => {
+      const updated = await db.transaction(async (tx) => {
         const [updated] = await tx
           .update(bookings)
           .set({ status: "rejected" })
@@ -193,6 +220,16 @@ export const bookingsRouter = createTRPCRouter({
         });
         return updated;
       });
+      await notify({
+        userId: booking.userId,
+        email: booking.user.email,
+        type: "booking_rejected",
+        title: "Booking declined",
+        message: `Your booking request for ${booking.car.make} ${booking.car.model} (${booking.startDate} → ${booking.endDate}) was declined.${input.reason ? ` Reason: ${input.reason}` : ""}`,
+        link: `/dashboard/bookings/${booking.id}`,
+        ctaLabel: "View details",
+      });
+      return updated;
     }),
 
   complete: adminProcedure.input(z.object({ id: z.string() })).mutation(async ({ ctx, input }) => {

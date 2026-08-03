@@ -4,6 +4,7 @@ import { TRPCError } from "@trpc/server";
 import { createTRPCRouter, protectedProcedure, adminProcedure } from "@/trpc/init";
 import { db } from "@/db";
 import { payments } from "@/db/schema";
+import { notify } from "@/lib/notify";
 
 // Simulated card processing -- no real gateway is wired up, so this stands
 // in for a charge attempt. A small failure rate keeps the "failed" status
@@ -48,6 +49,7 @@ export const paymentsRouter = createTRPCRouter({
     .mutation(async ({ ctx, input }) => {
       const payment = await db.query.payments.findFirst({
         where: eq(payments.bookingId, input.bookingId),
+        with: { booking: { with: { car: true } } },
       });
       if (!payment) throw new TRPCError({ code: "NOT_FOUND" });
       if (payment.userId !== ctx.session.user.id) throw new TRPCError({ code: "FORBIDDEN" });
@@ -75,13 +77,40 @@ export const paymentsRouter = createTRPCRouter({
         })
         .where(eq(payments.id, payment.id))
         .returning();
+
+      const carLabel = `${payment.booking.car.make} ${payment.booking.car.model}`;
+      await notify(
+        succeeded
+          ? {
+              userId: ctx.session.user.id,
+              email: ctx.session.user.email,
+              type: "payment_paid",
+              title: "Payment received",
+              message: `We've received your payment of $${payment.amount} for ${carLabel}.`,
+              link: `/dashboard/bookings/${payment.bookingId}`,
+              ctaLabel: "View receipt",
+            }
+          : {
+              userId: ctx.session.user.id,
+              email: ctx.session.user.email,
+              type: "payment_failed",
+              title: "Payment failed",
+              message: `Your card payment of $${payment.amount} for ${carLabel} didn't go through. Please try again.`,
+              link: `/dashboard/bookings/${payment.bookingId}`,
+              ctaLabel: "Retry payment",
+            },
+      );
+
       return updated;
     }),
 
   markCashPaid: adminProcedure
     .input(z.object({ id: z.string() }))
     .mutation(async ({ input }) => {
-      const payment = await db.query.payments.findFirst({ where: eq(payments.id, input.id) });
+      const payment = await db.query.payments.findFirst({
+        where: eq(payments.id, input.id),
+        with: { booking: { with: { car: true } }, user: true },
+      });
       if (!payment) throw new TRPCError({ code: "NOT_FOUND" });
       if (payment.method !== "cash" || payment.status !== "pending") {
         throw new TRPCError({
@@ -94,6 +123,17 @@ export const paymentsRouter = createTRPCRouter({
         .set({ status: "paid", paidAt: new Date(), transactionRef: mockTransactionRef("CASH") })
         .where(eq(payments.id, input.id))
         .returning();
+
+      await notify({
+        userId: payment.userId,
+        email: payment.user.email,
+        type: "payment_paid",
+        title: "Payment received",
+        message: `Your cash payment of $${payment.amount} for ${payment.booking.car.make} ${payment.booking.car.model} has been confirmed.`,
+        link: `/dashboard/bookings/${payment.bookingId}`,
+        ctaLabel: "View receipt",
+      });
+
       return updated;
     }),
 
