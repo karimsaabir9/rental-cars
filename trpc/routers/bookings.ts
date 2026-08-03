@@ -5,6 +5,7 @@ import { createTRPCRouter, protectedProcedure, adminProcedure } from "@/trpc/ini
 import { db } from "@/db";
 import { bookings, bookingEvents, cars, payments } from "@/db/schema";
 import { notify, notifyAdmins } from "@/lib/notify";
+import { enforceRateLimit } from "@/lib/rate-limit";
 
 // "confirmed" is the legacy instant-book status; treated as active here so
 // any pre-workflow rows still correctly block overlapping dates.
@@ -38,6 +39,8 @@ async function assertNoOverlap(
 
 export const bookingsRouter = createTRPCRouter({
   create: protectedProcedure.input(dateRangeInput).mutation(async ({ ctx, input }) => {
+    await enforceRateLimit("bookingCreate", ctx.session.user.id);
+
     if (input.endDate < input.startDate) {
       throw new TRPCError({ code: "BAD_REQUEST", message: "End date must be after start date." });
     }

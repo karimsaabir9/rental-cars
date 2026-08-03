@@ -5,6 +5,7 @@ import { createTRPCRouter, protectedProcedure, adminProcedure } from "@/trpc/ini
 import { db } from "@/db";
 import { payments } from "@/db/schema";
 import { notify } from "@/lib/notify";
+import { enforceRateLimit } from "@/lib/rate-limit";
 
 // Simulated card processing -- no real gateway is wired up, so this stands
 // in for a charge attempt. A small failure rate keeps the "failed" status
@@ -47,6 +48,8 @@ export const paymentsRouter = createTRPCRouter({
   pay: protectedProcedure
     .input(z.object({ bookingId: z.string(), method: z.enum(["card", "cash"]) }))
     .mutation(async ({ ctx, input }) => {
+      await enforceRateLimit("paymentAttempt", ctx.session.user.id);
+
       const payment = await db.query.payments.findFirst({
         where: eq(payments.bookingId, input.bookingId),
         with: { booking: { with: { car: true } } },
