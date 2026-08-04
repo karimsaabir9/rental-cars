@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { toast } from "sonner";
 import { CreditCard, Download, Wallet } from "lucide-react";
 import { trpc } from "@/trpc/client";
@@ -20,6 +20,11 @@ export function PaymentPanel({
   const utils = trpc.useUtils();
   const { data: payment, isLoading } = trpc.payments.getByBooking.useQuery({ bookingId });
   const [pendingMethod, setPendingMethod] = useState<"card" | "cash" | null>(null);
+  // Doubles as an in-flight guard and the current attempt's idempotency
+  // key: non-null while a request is out, so a double-click firing two
+  // click events before React re-renders (isPending is state, so it
+  // wouldn't catch this in time) still only sends one request.
+  const attemptKeyRef = useRef<string | null>(null);
 
   const pay = trpc.payments.pay.useMutation({
     onSuccess: (updated) => {
@@ -39,10 +44,18 @@ export function PaymentPanel({
   if (!payment) return null;
 
   function handlePay(method: "card" | "cash") {
+    if (attemptKeyRef.current) return;
+    const idempotencyKey = crypto.randomUUID();
+    attemptKeyRef.current = idempotencyKey;
     setPendingMethod(method);
     pay.mutate(
-      { bookingId, method },
-      { onSettled: () => setPendingMethod(null) },
+      { bookingId, method, idempotencyKey },
+      {
+        onSettled: () => {
+          attemptKeyRef.current = null;
+          setPendingMethod(null);
+        },
+      },
     );
   }
 

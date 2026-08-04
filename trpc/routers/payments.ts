@@ -42,7 +42,18 @@ export const paymentsRouter = createTRPCRouter({
   }),
 
   pay: protectedProcedure
-    .input(z.object({ bookingId: z.string(), method: z.enum(["card", "cash"]) }))
+    .input(
+      z.object({
+        bookingId: z.string(),
+        method: z.enum(["card", "cash"]),
+        // Client generates one key per payment attempt (reused across
+        // retries of that same attempt, not regenerated per click) so a
+        // duplicate request -- a double-click, or a client-side retry after
+        // a dropped response -- can be told apart from a genuine new
+        // attempt. See the transaction below.
+        idempotencyKey: z.string().min(1).max(100).optional(),
+      }),
+    )
     .mutation(async ({ ctx, input }) => {
       await enforceRateLimit("paymentAttempt", ctx.session.user.id);
 
@@ -52,53 +63,74 @@ export const paymentsRouter = createTRPCRouter({
       });
       if (!payment) throw new TRPCError({ code: "NOT_FOUND" });
       if (payment.userId !== ctx.session.user.id) throw new TRPCError({ code: "FORBIDDEN" });
-      if (!canPay(payment.status)) {
-        throw new TRPCError({ code: "BAD_REQUEST", message: "This booking is already paid." });
-      }
 
-      if (input.method === "cash") {
-        const [updated] = await db
+      // The row lock serializes concurrent pay() calls on this payment --
+      // without it, two requests that race before either write lands could
+      // both pass the canPay check and both "charge" (with a real gateway,
+      // that's an actual double charge, not just a data race). Re-reading
+      // status from the locked row (not the read above) is what makes that
+      // safe; a matching idempotencyKey on an already-settled row means
+      // this is a replay of a request already processed, so it returns the
+      // stored outcome instead of erroring or charging again.
+      const { updated, chargedNow } = await db.transaction(async (tx) => {
+        const [locked] = await tx.select().from(payments).where(eq(payments.id, payment.id)).for("update");
+
+        const isReplay =
+          !!input.idempotencyKey && locked.idempotencyKey === input.idempotencyKey && !canPay(locked.status);
+        if (isReplay) return { updated: locked, chargedNow: false };
+
+        if (!canPay(locked.status)) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "This booking is already paid." });
+        }
+
+        if (input.method === "cash") {
+          const [row] = await tx
+            .update(payments)
+            .set({ method: "cash", idempotencyKey: input.idempotencyKey ?? null })
+            .where(eq(payments.id, payment.id))
+            .returning();
+          return { updated: row, chargedNow: false };
+        }
+
+        const succeeded = decideCardOutcome(Math.random());
+        const [row] = await tx
           .update(payments)
-          .set({ method: "cash" })
+          .set({
+            method: "card",
+            status: succeeded ? "paid" : "failed",
+            paidAt: succeeded ? new Date() : null,
+            transactionRef: succeeded ? mockTransactionRef("TXN") : null,
+            idempotencyKey: input.idempotencyKey ?? null,
+          })
           .where(eq(payments.id, payment.id))
           .returning();
-        return updated;
+        return { updated: row, chargedNow: true };
+      });
+
+      if (chargedNow && updated.method === "card") {
+        const carLabel = `${payment.booking.car.make} ${payment.booking.car.model}`;
+        await notify(
+          updated.status === "paid"
+            ? {
+                userId: ctx.session.user.id,
+                email: ctx.session.user.email,
+                type: "payment_paid",
+                title: "Payment received",
+                message: `We've received your payment of $${payment.amount} for ${carLabel}.`,
+                link: `/dashboard/bookings/${payment.bookingId}`,
+                ctaLabel: "View receipt",
+              }
+            : {
+                userId: ctx.session.user.id,
+                email: ctx.session.user.email,
+                type: "payment_failed",
+                title: "Payment failed",
+                message: `Your card payment of $${payment.amount} for ${carLabel} didn't go through. Please try again.`,
+                link: `/dashboard/bookings/${payment.bookingId}`,
+                ctaLabel: "Retry payment",
+              },
+        );
       }
-
-      const succeeded = decideCardOutcome(Math.random());
-      const [updated] = await db
-        .update(payments)
-        .set({
-          method: "card",
-          status: succeeded ? "paid" : "failed",
-          paidAt: succeeded ? new Date() : null,
-          transactionRef: succeeded ? mockTransactionRef("TXN") : null,
-        })
-        .where(eq(payments.id, payment.id))
-        .returning();
-
-      const carLabel = `${payment.booking.car.make} ${payment.booking.car.model}`;
-      await notify(
-        succeeded
-          ? {
-              userId: ctx.session.user.id,
-              email: ctx.session.user.email,
-              type: "payment_paid",
-              title: "Payment received",
-              message: `We've received your payment of $${payment.amount} for ${carLabel}.`,
-              link: `/dashboard/bookings/${payment.bookingId}`,
-              ctaLabel: "View receipt",
-            }
-          : {
-              userId: ctx.session.user.id,
-              email: ctx.session.user.email,
-              type: "payment_failed",
-              title: "Payment failed",
-              message: `Your card payment of $${payment.amount} for ${carLabel} didn't go through. Please try again.`,
-              link: `/dashboard/bookings/${payment.bookingId}`,
-              ctaLabel: "Retry payment",
-            },
-      );
 
       return updated;
     }),

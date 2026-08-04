@@ -4,12 +4,16 @@ A full-stack car rental platform built with Next.js. Visitors can browse a live 
 
 ## Features
 
-- **Public browsing** — searchable, filterable car listings (category, transmission, price) with detail pages, no account required to browse.
+- **Public browsing** — searchable, filterable car listings (category, transmission, price) with detail pages, no account required to browse. The listing query caches its DB fetch and invalidates on any fleet change.
 - **Authentication** — email/password auth via Better Auth, with session-aware navigation across the entire app (marketing pages, dashboard, and admin console all reflect the current user).
-- **Booking flow** — date-range booking with live price calculation and conflict checking, so a car can't be double-booked for overlapping dates.
+- **Booking flow** — date-range booking with live price calculation and conflict checking, so a car can't be double-booked for overlapping dates, followed by an admin approval step.
+- **Payments** — simulated card/cash checkout per booking, with idempotency-key + row-locked mutations so a double-click or retry can't double-charge, PDF invoices/receipts, and admin refund / mark-cash-paid actions.
+- **Reviews & ratings** — gated to completed rentals, surfaced on car listings and detail pages.
+- **Notifications** — in-app + email (booking and payment lifecycle events), best-effort so a delivery failure never fails the underlying action.
 - **User dashboard** — booking history and cancellation, profile/email/security settings, avatar upload with cropping.
-- **Admin console** — fleet CRUD with image upload, booking oversight, and user management, gated by a role-locked authorization model (only the seeded account can ever hold the admin role).
-- **Type-safe API layer** — tRPC procedures tiered by access level (public / authenticated / admin), enforced independently of the UI.
+- **Admin console** — fleet CRUD with image upload, booking approval workflow, payments, reviews moderation, user management, and an audit log of admin actions — gated by a role-locked authorization model (only the seeded account can ever hold the admin role).
+- **Type-safe API layer** — tRPC procedures tiered by access level (public / authenticated / admin), enforced independently of the UI, with rate limiting on booking/payment mutations.
+- **Production hardening** — CSP + standard security headers, Sentry error monitoring with source map upload, a `/api/health` endpoint for uptime checks, and CI (typecheck/lint/test) on every push and PR.
 
 ## Tech stack
 
@@ -24,7 +28,13 @@ A full-stack car rental platform built with Next.js. Visitors can browse a live 
 | API | [tRPC](https://trpc.io) + TanStack Query |
 | Forms & validation | React Hook Form + Zod |
 | Image hosting | Cloudinary |
+| Email | Nodemailer (Gmail SMTP) |
+| Rate limiting | [Upstash Redis](https://upstash.com) |
+| Error monitoring | [Sentry](https://sentry.io) |
+| PDF generation | [@react-pdf/renderer](https://react-pdf.org) (invoices/receipts) |
+| Charts | Recharts (admin stats) |
 | Animation | GSAP |
+| Testing | Vitest |
 
 ## Getting started
 
@@ -51,13 +61,17 @@ A full-stack car rental platform built with Next.js. Visitors can browse a live 
    cp .env.example .env
    ```
 
-   | Variable | Description |
-   |---|---|
-   | `DATABASE_URL` | Postgres connection string |
-   | `BETTER_AUTH_SECRET` | Random secret used to sign sessions |
-   | `BETTER_AUTH_URL` | Base URL of the app (e.g. `http://localhost:3000`) |
-   | `SEED_ADMIN_NAME` / `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD` | Credentials for the seeded admin account |
-   | `CLOUDINARY_CLOUD_NAME` / `CLOUDINARY_API_KEY` / `CLOUDINARY_API_SECRET` | Cloudinary credentials for image uploads |
+   | Variable | Required | Description |
+   |---|---|---|
+   | `DATABASE_URL` | Yes | Postgres connection string |
+   | `BETTER_AUTH_SECRET` | Yes | Random secret used to sign sessions |
+   | `BETTER_AUTH_URL` | Yes | Base URL of the app (e.g. `http://localhost:3000`) |
+   | `SEED_ADMIN_NAME` / `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD` | Yes | Credentials for the seeded admin account |
+   | `CLOUDINARY_CLOUD_NAME` / `CLOUDINARY_API_KEY` / `CLOUDINARY_API_SECRET` | Yes | Cloudinary credentials for image uploads |
+   | `GMAIL_USER` / `GMAIL_APP_PASSWORD` | Optional | Transactional email (booking/payment notifications). Skipped with a warning if unset. App password from [myaccount.google.com/apppasswords](https://myaccount.google.com/apppasswords) (needs 2-Step Verification). |
+   | `KV_REST_API_URL` / `KV_REST_API_TOKEN` | Optional | Upstash Redis for rate limiting. Skipped with a warning if unset. |
+   | `NEXT_PUBLIC_SENTRY_DSN` | Optional | Enables Sentry error monitoring. Disabled if unset. |
+   | `SENTRY_AUTH_TOKEN` | Optional | Uploads source maps at build time for de-obfuscated stack traces. Build just skips uploading if unset. |
 
 3. **Set up the database**
 
@@ -84,6 +98,7 @@ A full-stack car rental platform built with Next.js. Visitors can browse a live 
 | `pnpm build` | Build for production |
 | `pnpm start` | Run the production build |
 | `pnpm lint` | Lint the codebase |
+| `pnpm test` | Run the test suite (Vitest) |
 | `pnpm db:generate` | Generate a Drizzle migration from schema changes |
 | `pnpm db:migrate` | Apply pending migrations |
 | `pnpm db:push` | Push the schema directly to the database (dev workflow) |
@@ -96,12 +111,12 @@ A full-stack car rental platform built with Next.js. Visitors can browse a live 
 app/
   (marketing)/     Public pages — landing, car browsing, car detail
   (auth)/          Sign in / sign up
-  (user)/          User dashboard — bookings, settings
-  (admin)/         Admin console — fleet, bookings, users, settings
-  api/              Better Auth, tRPC, and upload route handlers
+  (user)/          User dashboard — bookings, payments, settings
+  (admin)/         Admin console — fleet, bookings, payments, reviews, users, audit log
+  api/              Better Auth, tRPC, upload, invoice, and health route handlers
 components/         UI components, grouped by feature area
-db/                 Drizzle schema, seed script
-lib/                Auth config, shared utilities
+db/                 Drizzle schema (modular, one file per domain), seed script
+lib/                Business rules and shared utilities, unit tested independently of the DB/API layer
 trpc/               Router definitions and procedure tiers
 ```
 

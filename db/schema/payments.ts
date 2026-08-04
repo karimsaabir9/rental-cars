@@ -26,6 +26,11 @@ export const payments = pgTable("payments", {
   method: paymentMethodEnum("method"),
   status: paymentStatusEnum("status").notNull().default("pending"),
   transactionRef: text("transaction_ref"),
+  // Client-generated key for the in-flight charge attempt. Lets pay() tell
+  // a genuine retry of the same attempt (return the stored outcome, no
+  // second charge) apart from a new attempt after a failure (process it
+  // normally) -- see the row lock + key check in payments.pay.
+  idempotencyKey: text("idempotency_key"),
   paidAt: timestamp("paid_at"),
   refundedAt: timestamp("refunded_at"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
