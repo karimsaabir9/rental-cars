@@ -6,6 +6,7 @@ import { db } from "@/db";
 import { bookings, cars, reviews } from "@/db/schema";
 import { CAR_CATEGORY_VALUES } from "@/lib/car-categories";
 import { computeCarDisplayStatus } from "@/lib/car-status";
+import { logAudit } from "@/lib/audit";
 
 const CAR_SORT_VALUES = ["price_asc", "price_desc", "rating_desc", "popular_desc", "newest"] as const;
 type CarSort = (typeof CAR_SORT_VALUES)[number];
@@ -219,21 +220,33 @@ export const carsRouter = createTRPCRouter({
 
   setStatus: adminProcedure
     .input(z.object({ id: z.string(), status: z.enum(["available", "maintenance"]) }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ ctx, input }) => {
+      const existing = await db.query.cars.findFirst({ where: eq(cars.id, input.id) });
+      if (!existing) throw new TRPCError({ code: "NOT_FOUND" });
       const [updated] = await db
         .update(cars)
         .set({ status: input.status })
         .where(eq(cars.id, input.id))
         .returning();
-      if (!updated) throw new TRPCError({ code: "NOT_FOUND" });
+
+      await logAudit({
+        entityType: "car",
+        entityId: input.id,
+        action: "status_changed",
+        actorId: ctx.session.user.id,
+        metadata: { from: existing.status, to: input.status },
+      });
+
       return updated;
     }),
 
-  delete: adminProcedure.input(z.object({ id: z.string() })).mutation(async ({ input }) => {
+  delete: adminProcedure.input(z.object({ id: z.string() })).mutation(async ({ ctx, input }) => {
     // Bookings/payments/reviews all cascade-delete on cars.id, so an
     // unconditional delete here would silently wipe booking and revenue
     // history. Once a car has ever been booked, retire it via status
     // instead -- only a car with zero booking history can be hard-deleted.
+    const existing = await db.query.cars.findFirst({ where: eq(cars.id, input.id) });
+    if (!existing) throw new TRPCError({ code: "NOT_FOUND" });
     const hasBooking = await db.query.bookings.findFirst({
       where: eq(bookings.carId, input.id),
     });
@@ -245,6 +258,15 @@ export const carsRouter = createTRPCRouter({
       });
     }
     await db.delete(cars).where(eq(cars.id, input.id));
+
+    await logAudit({
+      entityType: "car",
+      entityId: input.id,
+      action: "deleted",
+      actorId: ctx.session.user.id,
+      metadata: { make: existing.make, model: existing.model, licensePlate: existing.licensePlate },
+    });
+
     return { success: true };
   }),
 });

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, CalendarRange, Car, Users, CreditCard, Star } from "lucide-react";
+import { LayoutDashboard, CalendarRange, Car, Users, CreditCard, Star, ScrollText } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { UserMenu } from "@/components/dashboard/user-menu";
 import { NotificationBell } from "@/components/dashboard/notification-bell";
@@ -20,6 +20,7 @@ const NAV_ITEMS_BY_ROLE = {
     { href: "/admin/payments", label: "Payments", icon: CreditCard },
     { href: "/admin/reviews", label: "Reviews", icon: Star },
     { href: "/admin/users", label: "Users", icon: Users },
+    { href: "/admin/audit-log", label: "Audit Log", icon: ScrollText },
   ],
 } as const;
 

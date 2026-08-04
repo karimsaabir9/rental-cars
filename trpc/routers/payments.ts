@@ -6,6 +6,7 @@ import { db } from "@/db";
 import { payments } from "@/db/schema";
 import { notify } from "@/lib/notify";
 import { enforceRateLimit } from "@/lib/rate-limit";
+import { logAudit } from "@/lib/audit";
 import { canMarkCashPaid, canPay, canRefund, decideCardOutcome, mockTransactionRef } from "@/lib/payment-rules";
 
 export const paymentsRouter = createTRPCRouter({
@@ -104,7 +105,7 @@ export const paymentsRouter = createTRPCRouter({
 
   markCashPaid: adminProcedure
     .input(z.object({ id: z.string() }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ ctx, input }) => {
       const payment = await db.query.payments.findFirst({
         where: eq(payments.id, input.id),
         with: { booking: { with: { car: true } }, user: true },
@@ -122,6 +123,14 @@ export const paymentsRouter = createTRPCRouter({
         .where(eq(payments.id, input.id))
         .returning();
 
+      await logAudit({
+        entityType: "payment",
+        entityId: payment.id,
+        action: "marked_cash_paid",
+        actorId: ctx.session.user.id,
+        metadata: { amount: payment.amount, bookingId: payment.bookingId },
+      });
+
       await notify({
         userId: payment.userId,
         email: payment.user.email,
@@ -135,7 +144,7 @@ export const paymentsRouter = createTRPCRouter({
       return updated;
     }),
 
-  refund: adminProcedure.input(z.object({ id: z.string() })).mutation(async ({ input }) => {
+  refund: adminProcedure.input(z.object({ id: z.string() })).mutation(async ({ ctx, input }) => {
     const payment = await db.query.payments.findFirst({ where: eq(payments.id, input.id) });
     if (!payment) throw new TRPCError({ code: "NOT_FOUND" });
     if (!canRefund(payment.status)) {
@@ -146,6 +155,15 @@ export const paymentsRouter = createTRPCRouter({
       .set({ status: "refunded", refundedAt: new Date() })
       .where(eq(payments.id, input.id))
       .returning();
+
+    await logAudit({
+      entityType: "payment",
+      entityId: payment.id,
+      action: "refunded",
+      actorId: ctx.session.user.id,
+      metadata: { amount: payment.amount, bookingId: payment.bookingId },
+    });
+
     return updated;
   }),
 });

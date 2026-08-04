@@ -6,6 +6,7 @@ import { bookingEvents } from "@/db/schema/booking-events";
 import { payments } from "@/db/schema/payments";
 import { reviews } from "@/db/schema/reviews";
 import { notifications } from "@/db/schema/notifications";
+import { auditLog } from "@/db/schema/audit-log";
 
 export const userRelations = relations(user, ({ many }) => ({
   bookings: many(bookings),
@@ -13,6 +14,7 @@ export const userRelations = relations(user, ({ many }) => ({
   payments: many(payments),
   reviews: many(reviews),
   notifications: many(notifications),
+  auditLogEntries: many(auditLog),
 }));
 
 export const carsRelations = relations(cars, ({ many }) => ({
@@ -44,4 +46,8 @@ export const reviewsRelations = relations(reviews, ({ one }) => ({
 
 export const notificationsRelations = relations(notifications, ({ one }) => ({
   user: one(user, { fields: [notifications.userId], references: [user.id] }),
+}));
+
+export const auditLogRelations = relations(auditLog, ({ one }) => ({
+  actor: one(user, { fields: [auditLog.actorId], references: [user.id] }),
 }));

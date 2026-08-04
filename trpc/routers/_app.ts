@@ -7,6 +7,7 @@ import { statsRouter } from "@/trpc/routers/stats";
 import { paymentsRouter } from "@/trpc/routers/payments";
 import { reviewsRouter } from "@/trpc/routers/reviews";
 import { notificationsRouter } from "@/trpc/routers/notifications";
+import { auditLogRouter } from "@/trpc/routers/audit-log";
 
 export const appRouter = createTRPCRouter({
   cars: carsRouter,
@@ -16,6 +17,7 @@ export const appRouter = createTRPCRouter({
   payments: paymentsRouter,
   reviews: reviewsRouter,
   notifications: notificationsRouter,
+  auditLog: auditLogRouter,
 });
 
 export type AppRouter = typeof appRouter;
