@@ -22,13 +22,65 @@ export function NotificationBell() {
   });
   const { data: items } = trpc.notifications.listMine.useQuery();
 
-  const invalidate = () => {
+  const reconcile = () => {
     utils.notifications.unreadCount.invalidate();
     utils.notifications.listMine.invalidate();
   };
 
-  const markRead = trpc.notifications.markRead.useMutation({ onSuccess: invalidate });
-  const markAllRead = trpc.notifications.markAllRead.useMutation({ onSuccess: invalidate });
+  // Marking read is purely local state (no validation that can fail beyond
+  // "not found"), so the UI updates instantly and only rolls back if the
+  // request genuinely fails -- reconcile() on settle still catches any
+  // drift against the server.
+  const markRead = trpc.notifications.markRead.useMutation({
+    onMutate: async ({ id }) => {
+      await Promise.all([
+        utils.notifications.listMine.cancel(),
+        utils.notifications.unreadCount.cancel(),
+      ]);
+      const prevItems = utils.notifications.listMine.getData();
+      const prevCount = utils.notifications.unreadCount.getData();
+      const wasUnread = prevItems?.find((n) => n.id === id)?.read === false;
+
+      utils.notifications.listMine.setData(undefined, (old) =>
+        old?.map((n) => (n.id === id ? { ...n, read: true } : n)),
+      );
+      if (wasUnread) {
+        utils.notifications.unreadCount.setData(undefined, (old) => Math.max(0, (old ?? 0) - 1));
+      }
+      return { prevItems, prevCount };
+    },
+    onError: (_err, _vars, context) => {
+      if (context) {
+        utils.notifications.listMine.setData(undefined, context.prevItems);
+        utils.notifications.unreadCount.setData(undefined, context.prevCount);
+      }
+    },
+    onSettled: reconcile,
+  });
+
+  const markAllRead = trpc.notifications.markAllRead.useMutation({
+    onMutate: async () => {
+      await Promise.all([
+        utils.notifications.listMine.cancel(),
+        utils.notifications.unreadCount.cancel(),
+      ]);
+      const prevItems = utils.notifications.listMine.getData();
+      const prevCount = utils.notifications.unreadCount.getData();
+
+      utils.notifications.listMine.setData(undefined, (old) =>
+        old?.map((n) => ({ ...n, read: true })),
+      );
+      utils.notifications.unreadCount.setData(undefined, 0);
+      return { prevItems, prevCount };
+    },
+    onError: (_err, _vars, context) => {
+      if (context) {
+        utils.notifications.listMine.setData(undefined, context.prevItems);
+        utils.notifications.unreadCount.setData(undefined, context.prevCount);
+      }
+    },
+    onSettled: reconcile,
+  });
 
   return (
     <DropdownMenu>

@@ -22,11 +22,20 @@ export function MyBookingsTable() {
   const utils = trpc.useUtils();
 
   const cancelBooking = trpc.bookings.cancelMine.useMutation({
-    onSuccess: () => {
-      toast.success("Booking cancelled.");
-      utils.bookings.listMine.invalidate();
+    onMutate: async ({ id }) => {
+      await utils.bookings.listMine.cancel();
+      const prevBookings = utils.bookings.listMine.getData();
+      utils.bookings.listMine.setData(undefined, (old) =>
+        old?.map((b) => (b.id === id ? { ...b, status: "cancelled" } : b)),
+      );
+      return { prevBookings };
     },
-    onError: (error) => toast.error(error.message),
+    onSuccess: () => toast.success("Booking cancelled."),
+    onError: (error, _vars, context) => {
+      toast.error(error.message);
+      if (context) utils.bookings.listMine.setData(undefined, context.prevBookings);
+    },
+    onSettled: () => utils.bookings.listMine.invalidate(),
   });
 
   if (isLoading) {
