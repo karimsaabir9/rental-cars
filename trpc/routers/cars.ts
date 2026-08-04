@@ -1,12 +1,14 @@
 import { z } from "zod";
-import { and, eq, lte, gte, asc, inArray, sql, ne, or, ilike } from "drizzle-orm";
+import { and, eq, lte, gte, asc, inArray, sql, ne } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
+import { unstable_cache as nextCache, revalidateTag } from "next/cache";
 import { createTRPCRouter, publicProcedure, adminProcedure } from "@/trpc/init";
 import { db } from "@/db";
 import { bookings, cars, reviews } from "@/db/schema";
 import { CAR_CATEGORY_VALUES } from "@/lib/car-categories";
 import { computeCarDisplayStatus } from "@/lib/car-status";
 import { logAudit } from "@/lib/audit";
+import { matchesCarFilters } from "@/lib/car-filters";
 
 const CAR_SORT_VALUES = ["price_asc", "price_desc", "rating_desc", "popular_desc", "newest"] as const;
 type CarSort = (typeof CAR_SORT_VALUES)[number];
@@ -77,7 +79,12 @@ function sortCars<
     id: string;
     pricePerDay: string;
     avgRating: number | null;
-    createdAt: Date;
+    // ISO 8601 strings sort correctly with plain string comparison, so the
+    // cached base data (see getCachedAvailableCars below) can carry
+    // createdAt as a string rather than a Date -- unstable_cache's return
+    // value has to be JSON-serializable, and Date doesn't round-trip
+    // through that safely.
+    createdAt: string;
   },
 >(rows: T[], sort: CarSort, bookingCounts: Map<string, number>) {
   const sorted = [...rows];
@@ -91,12 +98,44 @@ function sortCars<
         (a, b) => (bookingCounts.get(b.id) ?? 0) - (bookingCounts.get(a.id) ?? 0),
       );
     case "newest":
-      return sorted.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+      return sorted.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
     case "price_asc":
     default:
       return sorted.sort((a, b) => Number(a.pricePerDay) - Number(b.pricePerDay));
   }
 }
+
+// The DB round-trip for cars.list is identical across every filter/sort
+// combination -- only the WHERE clause the caller wants varies, and that's
+// cheap to apply in JS afterward. Caching per unique filter combination
+// wouldn't work well anyway since free-text search alone has unbounded
+// values. So this caches just the shared base fetch (all available cars +
+// rating stats + rented-car ids + booking counts) and callers filter/sort
+// the cached result in memory.
+//
+// Map/Set aren't JSON-serializable, so they're flattened to arrays/entries
+// here and reconstructed by the caller. Tagged "cars" so every mutation
+// that can change the result (create/update/setStatus/delete) invalidates
+// it immediately via revalidateTag -- the 60s revalidate window is just a
+// safety net in case an invalidation call is ever missed.
+const getCachedAvailableCarsBase = nextCache(
+  async () => {
+    const [rows, rentedIds, ratingStats, bookingCounts] = await Promise.all([
+      db.select().from(cars).where(eq(cars.status, "available")),
+      getCurrentlyRentedCarIds(),
+      getRatingStats(),
+      getBookingCounts(),
+    ]);
+    return {
+      rows: rows.map((r) => ({ ...r, createdAt: r.createdAt.toISOString() })),
+      rentedIds: [...rentedIds],
+      ratingStats: [...ratingStats.entries()],
+      bookingCounts: [...bookingCounts.entries()],
+    };
+  },
+  ["cars-list-available-base"],
+  { tags: ["cars"], revalidate: 60 },
+);
 
 export const carsRouter = createTRPCRouter({
   list: publicProcedure
@@ -115,29 +154,12 @@ export const carsRouter = createTRPCRouter({
         .optional(),
     )
     .query(async ({ input }) => {
-      const filters = [eq(cars.status, "available")];
-      if (input?.category) filters.push(eq(cars.category, input.category));
-      if (input?.transmission) filters.push(eq(cars.transmission, input.transmission));
-      if (input?.make) filters.push(eq(cars.make, input.make));
-      if (input?.minSeats) filters.push(gte(cars.seats, input.minSeats));
-      if (input?.minPrice) filters.push(gte(cars.pricePerDay, String(input.minPrice)));
-      if (input?.maxPrice) filters.push(lte(cars.pricePerDay, String(input.maxPrice)));
-      if (input?.search) {
-        const term = `%${input.search}%`;
-        filters.push(or(ilike(cars.make, term), ilike(cars.model, term))!);
-      }
+      const base = await getCachedAvailableCarsBase();
+      const rentedIds = new Set(base.rentedIds);
+      const ratingStats = new Map(base.ratingStats);
+      const bookingCounts = new Map(base.bookingCounts);
 
-      const [rows, rentedIds, ratingStats, bookingCounts] = await Promise.all([
-        db
-          .select()
-          .from(cars)
-          .where(and(...filters)),
-        getCurrentlyRentedCarIds(),
-        getRatingStats(),
-        getBookingCounts(),
-      ]);
-
-      const withStats = rows.map((car) =>
+      const withStats = base.rows.filter((car) => matchesCarFilters(car, input)).map((car) =>
         withRatingStats(
           { ...car, displayStatus: computeCarDisplayStatus(car.status, rentedIds.has(car.id)) },
           ratingStats,
@@ -199,6 +221,12 @@ export const carsRouter = createTRPCRouter({
       .insert(cars)
       .values({ ...input, pricePerDay: String(input.pricePerDay) })
       .returning();
+    // { expire: 0 } forces immediate expiration. The recommended "max"
+    // profile only gives stale-while-revalidate (the next read can still
+    // return stale data while a background refresh happens), which isn't
+    // good enough here -- an admin toggling a car's status expects the
+    // public listing to reflect it right away, not after one more stale hit.
+    revalidateTag("cars", { expire: 0 });
     return created;
   }),
 
@@ -215,6 +243,7 @@ export const carsRouter = createTRPCRouter({
         .where(eq(cars.id, id))
         .returning();
       if (!updated) throw new TRPCError({ code: "NOT_FOUND" });
+      revalidateTag("cars", { expire: 0 });
       return updated;
     }),
 
@@ -237,6 +266,7 @@ export const carsRouter = createTRPCRouter({
         metadata: { from: existing.status, to: input.status },
       });
 
+      revalidateTag("cars", { expire: 0 });
       return updated;
     }),
 
@@ -267,6 +297,7 @@ export const carsRouter = createTRPCRouter({
       metadata: { make: existing.make, model: existing.model, licensePlate: existing.licensePlate },
     });
 
+    revalidateTag("cars", "max");
     return { success: true };
   }),
 });
