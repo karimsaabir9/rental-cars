@@ -7,7 +7,7 @@ A full-stack car rental platform built with Next.js. Visitors can browse a live 
 - **Public browsing** — searchable, filterable car listings (category, transmission, price) with detail pages, no account required to browse. The listing query caches its DB fetch and invalidates on any fleet change.
 - **Authentication** — email/password auth via Better Auth, with session-aware navigation across the entire app (marketing pages, dashboard, and admin console all reflect the current user).
 - **Booking flow** — date-range booking with live price calculation and conflict checking, so a car can't be double-booked for overlapping dates, followed by an admin approval step.
-- **Payments** — simulated card/cash checkout per booking, with idempotency-key + row-locked mutations so a double-click or retry can't double-charge, PDF invoices/receipts, and admin refund / mark-cash-paid actions.
+- **Payments** — real card payments via Stripe Checkout (webhook-confirmed, never trusts the client redirect) or cash on pickup, with idempotency-key + row-locked mutations so a double-click or retry can't double-charge, PDF invoices/receipts, and admin refund (a real Stripe refund for card) / mark-cash-paid actions.
 - **Reviews & ratings** — gated to completed rentals, surfaced on car listings and detail pages.
 - **Notifications** — in-app + email (booking and payment lifecycle events), best-effort so a delivery failure never fails the underlying action.
 - **User dashboard** — booking history and cancellation, profile/email/security settings, avatar upload with cropping.
@@ -29,6 +29,7 @@ A full-stack car rental platform built with Next.js. Visitors can browse a live 
 | Forms & validation | React Hook Form + Zod |
 | Image hosting | Cloudinary |
 | Email | Nodemailer (Gmail SMTP) |
+| Payments | [Stripe](https://stripe.com) (Checkout + webhooks) |
 | Rate limiting | [Upstash Redis](https://upstash.com) |
 | Error monitoring | [Sentry](https://sentry.io) |
 | PDF generation | [@react-pdf/renderer](https://react-pdf.org) (invoices/receipts) |
@@ -72,6 +73,9 @@ A full-stack car rental platform built with Next.js. Visitors can browse a live 
    | `KV_REST_API_URL` / `KV_REST_API_TOKEN` | Optional | Upstash Redis for rate limiting. Skipped with a warning if unset. |
    | `NEXT_PUBLIC_SENTRY_DSN` | Optional | Enables Sentry error monitoring. Disabled if unset. |
    | `SENTRY_AUTH_TOKEN` | Optional | Uploads source maps at build time for de-obfuscated stack traces. Build just skips uploading if unset. |
+   | `STRIPE_SECRET_KEY` | Yes (for payments) | Server-side Stripe key from [dashboard.stripe.com/apikeys](https://dashboard.stripe.com/apikeys). Card payments throw without it. |
+   | `STRIPE_PUBLISHABLE_KEY` | Optional | Not currently used server-side (Checkout is a plain redirect), kept for future client-side Stripe.js use. |
+   | `STRIPE_WEBHOOK_SECRET` | Yes (for payments) | Signing secret for the endpoint you create at [dashboard.stripe.com/webhooks](https://dashboard.stripe.com/webhooks) pointing at `/api/webhooks/stripe`, listening for `checkout.session.completed`. Without it, card payments create a Checkout session but never get marked paid. |
 
 3. **Set up the database**
 
@@ -113,7 +117,7 @@ app/
   (auth)/          Sign in / sign up
   (user)/          User dashboard — bookings, payments, settings
   (admin)/         Admin console — fleet, bookings, payments, reviews, users, audit log
-  api/              Better Auth, tRPC, upload, invoice, and health route handlers
+  api/              Better Auth, tRPC, upload, invoice, health, and Stripe webhook route handlers
 components/         UI components, grouped by feature area
 db/                 Drizzle schema (modular, one file per domain), seed script
 lib/                Business rules and shared utilities, unit tested independently of the DB/API layer
