@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import { withSentryConfig } from "@sentry/nextjs";
 
 // Cloudinary/Unsplash images + Better Auth's own endpoints are the only
 // cross-origin sources this app legitimately loads; everything else is
@@ -57,4 +58,14 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+// Uploads source maps to Sentry on build so error stack traces are
+// de-obfuscated in the dashboard, then deletes the local .map files
+// (deleteSourcemapsAfterUpload defaults to true) so unminified source is
+// never served publicly. No-ops if SENTRY_AUTH_TOKEN isn't set, so local
+// dev and forks without the token still build fine.
+export default withSentryConfig(nextConfig, {
+  org: "sabir-19",
+  project: "javascript-nextjs",
+  authToken: process.env.SENTRY_AUTH_TOKEN,
+  silent: !process.env.SENTRY_AUTH_TOKEN,
+});

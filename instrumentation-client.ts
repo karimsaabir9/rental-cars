@@ -7,3 +7,6 @@ Sentry.init({
   enabled: !!process.env.NEXT_PUBLIC_SENTRY_DSN,
   tracesSampleRate: 0.1,
 });
+
+// Required for Sentry to trace client-side route transitions.
+export const onRouterTransitionStart = Sentry.captureRouterTransitionStart;
