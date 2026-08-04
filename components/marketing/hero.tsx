@@ -78,6 +78,7 @@ export function Hero() {
           alt={STOCK_IMAGES.hero.alt}
           fill
           priority
+          sizes="100vw"
           className="object-cover object-[75%_center]"
         />
         <div

@@ -230,6 +230,20 @@ export const carsRouter = createTRPCRouter({
     }),
 
   delete: adminProcedure.input(z.object({ id: z.string() })).mutation(async ({ input }) => {
+    // Bookings/payments/reviews all cascade-delete on cars.id, so an
+    // unconditional delete here would silently wipe booking and revenue
+    // history. Once a car has ever been booked, retire it via status
+    // instead -- only a car with zero booking history can be hard-deleted.
+    const hasBooking = await db.query.bookings.findFirst({
+      where: eq(bookings.carId, input.id),
+    });
+    if (hasBooking) {
+      throw new TRPCError({
+        code: "CONFLICT",
+        message:
+          "This car has booking history and can't be deleted. Mark it as unavailable instead.",
+      });
+    }
     await db.delete(cars).where(eq(cars.id, input.id));
     return { success: true };
   }),

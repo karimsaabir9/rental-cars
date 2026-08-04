@@ -63,6 +63,7 @@ export default async function CarDetailPage({
               src={car.imageUrl}
               alt={`${car.make} ${car.model}`}
               fill
+              sizes="(min-width: 1024px) 1024px, 100vw"
               className="object-cover"
               priority
             />

@@ -36,6 +36,7 @@ export function WhyChooseUs() {
               src={stockImageUrl("whyChooseUs", 1200)}
               alt={STOCK_IMAGES.whyChooseUs.alt}
               fill
+              sizes="(min-width: 1024px) 50vw, 100vw"
               className="object-cover"
             />
           </div>

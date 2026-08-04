@@ -73,6 +73,7 @@ export function BookingDetailView({
                       src={booking.car.imageUrl}
                       alt={`${booking.car.make} ${booking.car.model}`}
                       fill
+                      sizes="64px"
                       className="object-cover"
                     />
                   ) : (
