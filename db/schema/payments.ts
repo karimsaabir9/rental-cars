@@ -31,6 +31,11 @@ export const payments = pgTable("payments", {
   // second charge) apart from a new attempt after a failure (process it
   // normally) -- see the row lock + key check in payments.pay.
   idempotencyKey: text("idempotency_key"),
+  // Set once a Stripe Checkout Session is created for a card attempt; the
+  // webhook handler looks the payment up by this (via session metadata) to
+  // confirm it, so it doesn't need to trust anything the client says.
+  stripeSessionId: text("stripe_session_id"),
+  stripePaymentIntentId: text("stripe_payment_intent_id"),
   paidAt: timestamp("paid_at"),
   refundedAt: timestamp("refunded_at"),
   createdAt: timestamp("created_at").notNull().defaultNow(),

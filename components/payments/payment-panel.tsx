@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { CreditCard, Download, Wallet } from "lucide-react";
 import { trpc } from "@/trpc/client";
@@ -26,18 +26,48 @@ export function PaymentPanel({
   // wouldn't catch this in time) still only sends one request.
   const attemptKeyRef = useRef<string | null>(null);
 
-  const pay = trpc.payments.pay.useMutation({
-    onSuccess: (updated) => {
+  // Returning from Stripe Checkout. The webhook (not this redirect) is the
+  // source of truth for whether the charge actually succeeded, so this
+  // just nudges a refetch rather than trusting success_url on its own --
+  // the webhook is usually faster than the redirect but isn't guaranteed
+  // to be, so the badge may briefly still say "pending" here.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const outcome = params.get("payment");
+    if (!outcome) return;
+    if (outcome === "success") {
+      toast.success("Payment received -- confirming...");
       utils.payments.getByBooking.invalidate({ bookingId });
-      if (updated.status === "paid") {
-        toast.success("Payment successful.");
-      } else if (updated.status === "failed") {
-        toast.error("Payment failed. Please try again.");
-      } else {
-        toast.success("Cash on pickup selected. Pay when you collect the car.");
-      }
+    } else if (outcome === "cancelled") {
+      toast.info("Checkout cancelled. No charge was made.");
+    }
+    window.history.replaceState(null, "", window.location.pathname);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const pay = trpc.payments.pay.useMutation({
+    onSuccess: () => {
+      utils.payments.getByBooking.invalidate({ bookingId });
+      toast.success("Cash on pickup selected. Pay when you collect the car.");
     },
     onError: (error) => toast.error(error.message),
+    onSettled: () => {
+      attemptKeyRef.current = null;
+      setPendingMethod(null);
+    },
+  });
+
+  const checkout = trpc.payments.createCheckoutSession.useMutation({
+    onSuccess: (data) => {
+      // Full-page navigation to Stripe, not a client-side route -- the
+      // component unmounts here, so there's no "settled" state to reset.
+      window.location.href = data.url;
+    },
+    onError: (error) => {
+      toast.error(error.message);
+      attemptKeyRef.current = null;
+      setPendingMethod(null);
+    },
   });
 
   if (isLoading) return <Skeleton className="h-40 w-full" />;
@@ -48,17 +78,15 @@ export function PaymentPanel({
     const idempotencyKey = crypto.randomUUID();
     attemptKeyRef.current = idempotencyKey;
     setPendingMethod(method);
-    pay.mutate(
-      { bookingId, method, idempotencyKey },
-      {
-        onSettled: () => {
-          attemptKeyRef.current = null;
-          setPendingMethod(null);
-        },
-      },
-    );
+
+    if (method === "card") {
+      checkout.mutate({ bookingId, idempotencyKey });
+      return;
+    }
+    pay.mutate({ bookingId, idempotencyKey });
   }
 
+  const isPending = pay.isPending || checkout.isPending;
   const showMethodPicker = isOwner && (payment.status === "pending" || payment.status === "failed");
 
   return (
@@ -105,20 +133,20 @@ export function PaymentPanel({
             <div className="flex flex-col gap-2 sm:flex-row">
               <Button
                 className="flex-1"
-                disabled={pay.isPending}
+                disabled={isPending}
                 onClick={() => handlePay("card")}
               >
                 <CreditCard className="size-4" />
-                {pendingMethod === "card" && pay.isPending ? "Processing..." : "Pay with card"}
+                {pendingMethod === "card" && isPending ? "Redirecting..." : "Pay with card"}
               </Button>
               <Button
                 variant="outline"
                 className="flex-1"
-                disabled={pay.isPending}
+                disabled={isPending}
                 onClick={() => handlePay("cash")}
               >
                 <Wallet className="size-4" />
-                {pendingMethod === "cash" && pay.isPending ? "Saving..." : "Pay on pickup"}
+                {pendingMethod === "cash" && isPending ? "Saving..." : "Pay on pickup"}
               </Button>
             </div>
           </div>

@@ -1,12 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  CARD_SUCCESS_RATE,
-  canMarkCashPaid,
-  canPay,
-  canRefund,
-  decideCardOutcome,
-  mockTransactionRef,
-} from "./payment-rules";
+import { canMarkCashPaid, canPay, canRefund, mockTransactionRef } from "./payment-rules";
 
 describe("canPay", () => {
   it("allows paying a pending payment", () => {
@@ -55,23 +48,6 @@ describe("canRefund", () => {
 
   it("blocks double-refunding", () => {
     expect(canRefund("refunded")).toBe(false);
-  });
-});
-
-describe("decideCardOutcome", () => {
-  it("succeeds for rolls below the success rate", () => {
-    expect(decideCardOutcome(0)).toBe(true);
-    expect(decideCardOutcome(CARD_SUCCESS_RATE - 0.01)).toBe(true);
-  });
-
-  it("fails for rolls at or above the success rate", () => {
-    expect(decideCardOutcome(CARD_SUCCESS_RATE)).toBe(false);
-    expect(decideCardOutcome(0.99)).toBe(false);
-  });
-
-  it("respects a custom success rate", () => {
-    expect(decideCardOutcome(0.5, 1)).toBe(true);
-    expect(decideCardOutcome(0.5, 0)).toBe(false);
   });
 });
 
