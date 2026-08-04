@@ -112,7 +112,7 @@ export function DashboardShell({
   const settingsHref = SETTINGS_HREF_BY_ROLE[role];
 
   return (
-    <div className="flex min-h-screen flex-col lg:h-screen lg:flex-row lg:overflow-hidden">
+    <div className="flex min-h-screen flex-col lg:flex-row">
       {/* Mobile top bar */}
       <header className="flex items-center justify-between border-b border-border bg-card px-4 py-3 lg:hidden">
         <span className="font-display text-base font-semibold tracking-tight">
@@ -140,8 +140,9 @@ export function DashboardShell({
         />
       </div>
 
-      {/* Desktop sidebar */}
-      <aside className="hidden w-64 shrink-0 flex-col border-r border-border bg-card p-4 lg:flex lg:h-full">
+      {/* Desktop sidebar — fixed to the viewport so it (and the profile card at
+          its bottom) always stays in view, independent of page scroll. */}
+      <aside className="hidden w-64 shrink-0 flex-col border-r border-border bg-card p-4 lg:fixed lg:inset-y-0 lg:left-0 lg:z-20 lg:flex lg:h-dvh">
         <div className="mb-8 px-2">
           <span className="font-display text-lg font-semibold tracking-tight">
             <BrandTitle title={title} />
@@ -163,14 +164,14 @@ export function DashboardShell({
         </div>
       </aside>
 
-      <div className="flex flex-1 flex-col lg:h-full lg:min-h-0 lg:overflow-hidden">
-        <header className="hidden shrink-0 items-center justify-end border-b border-border bg-card px-6 py-3 lg:flex">
+      <div className="flex flex-1 flex-col lg:ml-64">
+        <header className="hidden items-center justify-end border-b border-border bg-card px-6 py-3 lg:flex">
           <NotificationBell />
         </header>
         <main
           id="main-content"
           key={pathname}
-          className="flex-1 animate-in fade-in slide-in-from-bottom-1 p-6 duration-300 sm:p-8 lg:overflow-y-auto"
+          className="flex-1 animate-in fade-in slide-in-from-bottom-1 p-6 duration-300 sm:p-8"
         >
           {children}
         </main>
